@@ -1,4 +1,4 @@
-namespace BoxSimpleSync.API
+namespace BoxSimpleSync.API.Model
 {
     public class AuthInfo
     {

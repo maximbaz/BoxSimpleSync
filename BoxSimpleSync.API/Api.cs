@@ -1,22 +1,26 @@
-﻿using System;
-using System.Linq;
+﻿using BoxSimpleSync.API.Model;
+using BoxSimpleSync.API.Request;
 
 namespace BoxSimpleSync.API
 {
     public class Api
     {
-        #region Public Methods
+        #region Properties and Indexers
 
-        public void Authenticate(User user, Action onComplete) {
-            new Authentication(user).Login(onComplete);
-        }
+        public Authentication Authentication { get; private set; }
+        public Files Files { get; private set; }
+        public Folders Folders { get; private set; }
+        public Events Events { get; set; }
 
-        public void UploadFiles(string[] fileNames, string folderId, AuthInfo authInfo, Action onComplete) {
-            new FileUploader(authInfo).Upload(fileNames, folderId, onComplete);
-        }
+        #endregion
 
-        public void GetFolderInfo(string id, AuthInfo authInfo, Action<Folder> onComplete) {
-            new Folders(authInfo).GetFolderInfo(id, onComplete);
+        #region Constructors and Destructor
+
+        public Api(User user) {
+            Authentication = new Authentication(user);
+            Files = new Files(user.AuthInfo);
+            Folders = new Folders(user.AuthInfo);
+            Events = new Events(user.AuthInfo);
         }
 
         #endregion

@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Threading.Tasks;
 
 namespace BoxSimpleSync.API
 {
@@ -7,32 +8,25 @@ namespace BoxSimpleSync.API
     {
         private const string ApiKey = "eu3dj9zermgofty4fi52qq1t0gfy0tih";
         
-        public static void Get(string url, DownloadStringCompletedEventHandler requestCompleted)
-        {
+        public static Task<string> Get(string url, string authToken) {
             var client = new WebClient();
-            client.DownloadStringAsync(new Uri(url + "&api_key=" + ApiKey));
-            client.DownloadStringCompleted += requestCompleted;
+            if (authToken == null)
+                return client.DownloadStringTaskAsync(new Uri(url + "&api_key=" + ApiKey));
+            client.Headers.Add(AuthHeader(authToken));
+            return client.DownloadStringTaskAsync(url);
         }
-
-        public static void Post(string url, string data, UploadStringCompletedEventHandler requestCompleted) {
-            var client = CreateWebClient();
-            client.Headers.Add("Content-Type:application/x-www-form-urlencoded");
-            client.UploadStringAsync(new Uri(url), "POST", data);
-            client.UploadStringCompleted += requestCompleted;
-        }
-
-        public static void Post(string url, string data, string authToken, UploadStringCompletedEventHandler requestCompleted) {
-            var client = CreateWebClient();
-            client.Headers.Add("Content-Type:application/x-www-form-urlencoded");
-            client.Headers.Add(string.Format("Authorization: BoxAuth api_key={0}&auth_token={1}", ApiKey, authToken));
-            client.UploadStringAsync(new Uri(url), "POST", data);
-            client.UploadStringCompleted += requestCompleted;
-        }
-
-        private static WebClient CreateWebClient() {
+        
+        public static Task<string> Post(string url, string data, string authToken) {
             var client = new WebClient();
             client.Headers.Add("Host:www.box.net");
-            return client;
+            client.Headers.Add("Content-Type:application/x-www-form-urlencoded");
+            if(authToken != null)
+                client.Headers.Add(AuthHeader(authToken));
+            return client.UploadStringTaskAsync(new Uri(url), "POST", data);
+        }
+
+        private static string AuthHeader(string authToken) {
+            return string.Format("Authorization: BoxAuth api_key={0}&auth_token={1}", ApiKey, authToken);
         }
     }
 }

@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using System.Windows;
-using BoxSimpleSync.API;
+using BoxSimpleSync.API.Model;
 
 namespace BoxSimpleSync.UI
 {
@@ -10,11 +12,14 @@ namespace BoxSimpleSync.UI
 
         public MainWindow() {
             InitializeComponent();
-            var box = new Api();
-            var user = new User("email", "password");
-            Action onAuth = () => box.GetFolderInfo("0", user.AuthInfo, folder => MessageBox.Show("OK"));
-//            Action onAuth = () => box.UploadFiles(Directory.GetFiles(@"E:\AeroFS\Фото - Наши\2010.11.17 Катюша и мы"), "285935855", user.AuthInfo, () => MessageBox.Show("OK"));
-            box.Authenticate(user, onAuth);
+//            var user = new User("email", "password");
+            var sync = new Synchronization(user);
+
+            var paths = new List<PathsPair> {
+                new PathsPair {Local = @"E:\boxSyncTest1", Server = "test/test1"}
+            };
+
+            sync.Start(paths);
         }
 
         #endregion

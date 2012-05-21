@@ -1,5 +1,8 @@
-namespace BoxSimpleSync.API
+using System.Diagnostics;
+
+namespace BoxSimpleSync.API.Model
 {
+    [DebuggerDisplay("Id = {Id}, Name = {Name}, Type = {Type}")]
     public class Item
     {
         #region Properties and Indexers

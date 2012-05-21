@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text;
+using BoxSimpleSync.API.Model;
 
-namespace BoxSimpleSync.API
+namespace BoxSimpleSync.API.Request
 {
-    internal sealed class FileUploader
+    public sealed class Files
     {
         #region Static Fields and Constants
 
@@ -23,7 +24,7 @@ namespace BoxSimpleSync.API
 
         #region Constructors and Destructor
 
-        public FileUploader(AuthInfo authInfo) {
+        public Files(AuthInfo authInfo) {
             this.authInfo = authInfo;
             boundary = Guid.NewGuid().ToString().Replace("-", string.Empty);
         }
