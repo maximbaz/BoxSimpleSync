@@ -12,16 +12,18 @@ namespace BoxSimpleSync.UI
 
         public MainWindow() {
             InitializeComponent();
-//            var user = new User("email", "password");
-            var sync = new Synchronization(user);
+        }
 
+        #endregion
+
+        private void SyncronizeNowClick(object sender, RoutedEventArgs e)
+        {
             var paths = new List<PathsPair> {
                 new PathsPair {Local = @"E:\boxSyncTest1", Server = "test/test1"}
             };
 
-            sync.Start(paths);
+            var user = new User("email", "password");
+            new Synchronization(user).Start(paths);
         }
-
-        #endregion
     }
 }

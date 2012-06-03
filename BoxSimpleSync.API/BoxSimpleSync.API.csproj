@@ -35,6 +35,15 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="FluentMongo">
+      <HintPath>..\packages\FluentMongo.1.3.1.1\lib\FluentMongo.dll</HintPath>
+    </Reference>
+    <Reference Include="MongoDB.Bson">
+      <HintPath>..\packages\mongocsharpdriver.1.3.1\lib\net35\MongoDB.Bson.dll</HintPath>
+    </Reference>
+    <Reference Include="MongoDB.Driver">
+      <HintPath>..\packages\mongocsharpdriver.1.3.1\lib\net35\MongoDB.Driver.dll</HintPath>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\packages\Newtonsoft.Json.4.5.5\lib\net40\Newtonsoft.Json.dll</HintPath>
     </Reference>
@@ -49,18 +58,19 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Api.cs" />
+    <Compile Include="Model\File.cs" />
     <Compile Include="Model\FoldersPair.cs" />
     <Compile Include="Model\PathsPair.cs" />
     <Compile Include="Request\Authentication.cs" />
     <Compile Include="Model\AuthInfo.cs" />
     <Compile Include="Model\Folder.cs" />
-    <Compile Include="Request\Events.cs" />
     <Compile Include="Request\Folders.cs" />
     <Compile Include="HttpRequest.cs" />
     <Compile Include="Request\Files.cs" />
     <Compile Include="Model\Item.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Model\User.cs" />
+    <Compile Include="Request\JsonParse.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

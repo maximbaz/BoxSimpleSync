@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -9,9 +10,15 @@ namespace BoxSimpleSync.API.Model
         #region Properties and Indexers
 
         public string ParentId { get; set; }
-        public string CreatedAt { get; set; }
-        public string ModifiedAt { get; set; }
         public List<Item> Items { get; set; }
+
+        #endregion
+
+        #region Constructors and Destructor
+
+        public Folder() {
+            Type = "folder";
+        }
 
         #endregion
     }

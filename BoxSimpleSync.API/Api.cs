@@ -10,7 +10,6 @@ namespace BoxSimpleSync.API
         public Authentication Authentication { get; private set; }
         public Files Files { get; private set; }
         public Folders Folders { get; private set; }
-        public Events Events { get; set; }
 
         #endregion
 
@@ -20,7 +19,6 @@ namespace BoxSimpleSync.API
             Authentication = new Authentication(user);
             Files = new Files(user.AuthInfo);
             Folders = new Folders(user.AuthInfo);
-            Events = new Events(user.AuthInfo);
         }
 
         #endregion
