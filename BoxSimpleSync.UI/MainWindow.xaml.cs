@@ -1,29 +1,37 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 using System.Windows;
+using BoxSimpleSync.API;
 using BoxSimpleSync.API.Model;
 
 namespace BoxSimpleSync.UI
 {
     public partial class MainWindow
     {
+        #region Fields
+
+        private readonly Synchronization synchronization;
+
+        #endregion
+
         #region Constructors and Destructor
 
         public MainWindow() {
             InitializeComponent();
+            synchronization = new Synchronization();
         }
 
         #endregion
 
-        private void SyncronizeNowClick(object sender, RoutedEventArgs e)
-        {
-            var paths = new List<PathsPair> {
-                new PathsPair {Local = @"E:\boxSyncTest1", Server = "test/test1"}
+        #region Protected And Private Methods
+
+        private void SynchronizeNowClick(object sender, RoutedEventArgs e) {
+            var paths = new List<Pair<string>> {
+                new Pair<string>("test/test1", @"E:\boxSyncTest1")
             };
 
-            var user = new User("email", "password");
-            new Synchronization(user).Start(paths);
+            synchronization.Start(paths);
         }
+
+        #endregion
     }
 }

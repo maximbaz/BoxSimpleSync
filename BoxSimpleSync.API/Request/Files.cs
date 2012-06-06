@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using BoxSimpleSync.API.Model;
+using BoxSimpleSync.API.Helpers;
 using File = BoxSimpleSync.API.Model.File;
 using IOFile = System.IO.File;
 
@@ -14,67 +14,53 @@ namespace BoxSimpleSync.API.Request
     {
         #region Static Fields and Constants
 
-        private const string UploadUrl = "http://upload.box.net/api/1.0/upload/{0}/{1}";
-        private const string DownloadUrl = "https://api.box.com/2.0/files/{0}/data";
-        private const string InfoUrl = "https://api.box.com/2.0/files/{0}";
+        private const string BaseUrl = "https://api.box.com/2.0";
+        private const string FileUrl = BaseUrl + "/files/{0}";
+        private const string DownloadUrl = FileUrl + "/data";
+        private const string UploadUrl = "https://upload.box.com/api/2.0/files/data"; // Todo: change url when API will be ready
 
         #endregion
 
         #region Fields
 
+        private readonly string authToken;
         private readonly string boundary;
-        private readonly AuthInfo authInfo;
 
         #endregion
 
         #region Constructors and Destructor
 
-        public Files(AuthInfo authInfo) {
-            this.authInfo = authInfo;
+        public Files(string authToken) {
+            this.authToken = authToken;
             boundary = Guid.NewGuid().ToString().Replace("-", string.Empty);
         }
 
         #endregion
 
-        #region Public Methods
+        #region Public and Internal Methods
 
-        public async Task Upload(List<string> filePaths, string folderId) {
-            foreach (var filesBlock in await AssembleFilesBlock(filePaths)) {
-                using (var resultStream = new MemoryStream()) {
-                    var formattedBoundary = GetFormattedBoundary(true);
+        public async Task<List<File>> Upload(List<string> filePaths, string folderId) {
+            var result = new List<File>();
+            var stopBoundary = GetFormattedBoundary(true);
+            var folderIdBlock = AssembleString("folder_id", folderId);
 
-                    await resultStream.WriteAsync(filesBlock, 0, filesBlock.Length);
-                    await resultStream.WriteAsync(formattedBoundary, 0, formattedBoundary.Length);
-
-                    await resultStream.FlushAsync();
-                    var result = resultStream.ToArray();
-                    var request = CreateRequest(result.Length, folderId);
-
-                    using (var requestStream = await request.GetRequestStreamAsync()) {
-                        await requestStream.WriteAsync(result, 0, result.Length);
-                        await requestStream.FlushAsync();
-
-                        using (var response = await request.GetResponseAsync()) {
-                            using (var responseStream = response.GetResponseStream()) {
-                                if (responseStream == null)
-                                    continue;
-
-                                using (var responseReader = new StreamReader(responseStream)) {
-                                    await responseReader.ReadToEndAsync();
-                                }
-                            }
-                        }
-                    }
-                }
+            foreach (var filesBlock in await AssembleFilesBlock(filePaths, folderIdBlock.Merge(stopBoundary))) {
+                result.AddRange(JsonParse.FilesList(await HttpRequest.UploadFiles(UploadUrl, boundary, filesBlock, authToken)));
             }
+
+            return result;
         }
 
         public async Task Download(string fileId, string location) {
-            await HttpRequest.DownloadFile(string.Format(DownloadUrl, fileId), location, authInfo.Token);
+            await HttpRequest.DownloadFile(string.Format(DownloadUrl, fileId), location, authToken);
         }
 
         public async Task<File> GetInfo(string id) {
-            return JsonParse.File(await HttpRequest.Get(string.Format(InfoUrl, id), authInfo.Token));
+            return JsonParse.File(await HttpRequest.Get(string.Format(FileUrl, id), authToken));
+        }
+
+        public Task Delete(string id) {
+            return HttpRequest.Delete(string.Format(FileUrl, id), authToken);
         }
 
         #endregion
@@ -87,7 +73,7 @@ namespace BoxSimpleSync.API.Request
             using (var resultStream = new MemoryStream()) {
                 var content = string.Format("Content-Disposition: form-data; name=\"{0}\"; filename=\"{1}\"{2}",
                                             Guid.NewGuid(),
-                                            Path.GetFileName(filePath), 
+                                            Path.GetFileName(filePath),
                                             Environment.NewLine);
                 buffer = Encoding.ASCII.GetBytes(content);
                 await resultStream.WriteAsync(buffer, 0, buffer.Length);
@@ -109,43 +95,58 @@ namespace BoxSimpleSync.API.Request
 
             return buffer;
         }
-        
-        private HttpWebRequest CreateRequest(long contentLength, string folderId) {
-            var webRequest = (HttpWebRequest) WebRequest.Create(string.Format(UploadUrl, authInfo.Token, folderId));
 
-            webRequest.Method = "POST";
-            webRequest.AllowWriteStreamBuffering = true;
-            webRequest.ContentType = string.Concat("multipart/form-data;boundary=", boundary);
-            webRequest.Headers.Add("Accept-Encoding", "gzip,deflate");
-            webRequest.Headers.Add("Accept-Charset", "ISO-8859-1");
-            webRequest.ContentLength = contentLength;
-
-            return webRequest;
-        }
-
-        private async Task<IEnumerable<byte[]>> AssembleFilesBlock(IEnumerable<string> filePaths) {
+        private async Task<IEnumerable<byte[]>> AssembleFilesBlock(ICollection<string> filePaths, byte[] additionalData) {
+            const int assembleFileExtraBytes = 146;
             var result = new List<byte[]>();
-            var resultStream = new MemoryStream();
-            var endBoundaryLength = GetFormattedBoundary(true).Length;
+
+            var formattedBoundary = GetFormattedBoundary(false);
+            var needSize = (from f in filePaths select new FileInfo(f).Length).Sum() + (formattedBoundary.Length + assembleFileExtraBytes) * filePaths.Count + additionalData.Length;
+            var memoryStream = new MemoryStream((int) Math.Min(needSize, int.MaxValue));
+
+            var streamWillExceedCapacity = new Func<MemoryStream, byte[], bool>((stream, file) => stream.Length + formattedBoundary.Length + file.Length + additionalData.Length > stream.Capacity);
+
+            // Todo: get rid of this when API will be fixed ------------------->
+            var numberOfFilesCanBeUploadedPerSingleRequest = 20;
+            var getStreamData = new Func<MemoryStream, byte[]>(stream => stream.Length == stream.Capacity ? stream.GetBuffer() : stream.ToArray());
+            // <------------------------------------------------------------
 
             foreach (var t in filePaths) {
-                var formattedBoundary = GetFormattedBoundary(false);
                 var file = await AssembleFile(t);
 
-                if (resultStream.Length + formattedBoundary.Length + file.Length + endBoundaryLength >= int.MaxValue) {
-                    await resultStream.FlushAsync();
-                    result.Add(resultStream.ToArray());
-                    resultStream.Dispose();
-                    resultStream = new MemoryStream();
+                if (streamWillExceedCapacity(memoryStream, file) || numberOfFilesCanBeUploadedPerSingleRequest < 1) {
+                    await memoryStream.WriteAsync(additionalData, 0, additionalData.Length);
+                    await memoryStream.FlushAsync();
+                    result.Add(getStreamData(memoryStream));
+                    memoryStream.Dispose();
+                    memoryStream = new MemoryStream((int) Math.Min(needSize, int.MaxValue));
+                    numberOfFilesCanBeUploadedPerSingleRequest = 20;
                 }
-                
-                await resultStream.WriteAsync(formattedBoundary, 0, formattedBoundary.Length);
-                await resultStream.WriteAsync(file, 0, file.Length);
+                await memoryStream.WriteAsync(formattedBoundary, 0, formattedBoundary.Length);
+                await memoryStream.WriteAsync(file, 0, file.Length);
+
+                needSize -= formattedBoundary.Length + file.Length;
+                --numberOfFilesCanBeUploadedPerSingleRequest;
             }
-            await resultStream.FlushAsync();
-            result.Add(resultStream.ToArray());
-            resultStream.Dispose();
+            await memoryStream.WriteAsync(additionalData, 0, additionalData.Length);
+            await memoryStream.FlushAsync();
+
+            result.Add(getStreamData(memoryStream));
+            memoryStream.Dispose();
             return result;
+        }
+
+        private byte[] AssembleString(string name, string value) {
+            var builder = new StringBuilder();
+
+            builder.AppendFormat("Content-Disposition: form-data; name=\"{0}\"{1}", name, Environment.NewLine);
+            builder.AppendLine();
+            builder.AppendLine(value);
+
+            var assembledString = Encoding.ASCII.GetBytes(builder.ToString());
+            var formattedBoundary = GetFormattedBoundary(false);
+
+            return formattedBoundary.Merge(assembledString);
         }
 
         private byte[] GetFormattedBoundary(bool isEndBoundary) {

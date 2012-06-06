@@ -3,17 +3,22 @@
 namespace BoxSimpleSync.API.Model
 {
     [DebuggerDisplay("Server = {Server}, Local = {Local}")]
-    public class ItemsPair<T> where T:Item
+    public class Pair<T>
     {
-        public ItemsPair(T server, string local)
-        {
+        #region Constructors and Destructor
+
+        public Pair(T server, string local) {
             Server = server;
             Local = local;
         }
 
+        #endregion
+
+        #region Public and Internal Properties and Indexers
+
         public T Server { get; set; }
         public string Local { get; set; }
+
+        #endregion
     }
-
-
 }

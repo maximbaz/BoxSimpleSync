@@ -1,49 +1,54 @@
 using System.Threading.Tasks;
 using System.Web;
 using System.Xml;
-using BoxSimpleSync.API.Model;
+using HttpRequest = BoxSimpleSync.API.Helpers.HttpRequest;
 
 namespace BoxSimpleSync.API.Request
 {
-    public class Authentication
+    public static class Authentication
     {
+        #region Static Fields and Constants
+
         private const string Server = "https://www.box.com/api/1.0/";
         private const string Auth = Server + "auth/";
         private const string Rest = Server + "rest?action=";
-        private readonly User user;
 
-        public Authentication(User user) {
-            this.user = user;
-        }
+        private static string ticket;
 
-        public async Task Login() {
+        #endregion
+
+        #region Public and Internal Methods
+
+        public static async Task<string> Login(string email, string password) {
             RetrieveTicket(await HttpRequest.Get(Rest + "get_ticket", null));
-            SendAuthenticationData();
-            await RetrieveAuthToken();
+            await SendAuthenticationData(email, password);
+            return await RetrieveAuthToken();
         }
 
-        private void RetrieveTicket(string response) {
+        #endregion
+
+        #region Protected And Private Methods
+
+        private static void RetrieveTicket(string response) {
             var xml = new XmlDocument();
             xml.LoadXml(response);
-            user.AuthInfo.Ticket = xml.DocumentElement.SelectSingleNode("ticket").InnerText;
+            ticket = xml.DocumentElement.SelectSingleNode("ticket").InnerText;
         }
 
-        private void SendAuthenticationData() {
-            HttpRequest.Post(Auth + user.AuthInfo.Ticket,
-                             string.Format("login={0}&password={1}&dologin=1&__login=1",
-                                           HttpUtility.UrlEncode(user.Login),
-                                           HttpUtility.UrlEncode(user.Password)), null);
+        private static Task SendAuthenticationData(string email, string password) {
+            return HttpRequest.Post(Auth + ticket,
+                                    string.Format("login={0}&password={1}&dologin=1&__login=1",
+                                                  HttpUtility.UrlEncode(email),
+                                                  HttpUtility.UrlEncode(password)), null);
         }
 
-        private async Task RetrieveAuthToken() {
-            var authToken = await HttpRequest.Get(Rest + "get_auth_token&ticket=" + user.AuthInfo.Ticket, null);
-            SaveAuthToken(authToken);
-        }
-
-        private void SaveAuthToken(string response) {
+        private static async Task<string> RetrieveAuthToken() {
+            var response = await HttpRequest.Get(Rest + "get_auth_token&ticket=" + ticket, null);
             var xml = new XmlDocument();
             xml.LoadXml(response);
-            user.AuthInfo.Token = xml.DocumentElement.SelectSingleNode("auth_token").InnerText;
+            return xml.DocumentElement.SelectSingleNode("auth_token").InnerText;
         }
+
+        #endregion
     }
 }

@@ -4,15 +4,24 @@ using System.Security.Cryptography;
 
 namespace BoxSimpleSync.API.Model
 {
-    [DebuggerDisplay("Id = {Id}, Name = {Name}")]
+    [DebuggerDisplay("Id = {Id}, Name = {Name}, Sha1 = {Sha1}")]
     public class File : Item
     {
-        public string Sha1 { get; set; }
         #region Constructors and Destructor
 
         public File() {
             Type = "file";
         }
+
+        #endregion
+
+        #region Public and Internal Properties and Indexers
+
+        public string Sha1 { get; set; }
+
+        #endregion
+
+        #region Public and Internal Methods
 
         public static string ComputeSha1(string file) {
             string result;

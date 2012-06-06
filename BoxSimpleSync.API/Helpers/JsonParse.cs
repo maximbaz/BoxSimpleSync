@@ -1,13 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using BoxSimpleSync.API.Model;
 using Newtonsoft.Json.Linq;
 
-namespace BoxSimpleSync.API.Request
+namespace BoxSimpleSync.API.Helpers
 {
     public static class JsonParse
     {
-        #region Public Methods
+        #region Public and Internal Methods
 
         public static Folder Folder(string json) {
             var jObject = JObject.Parse(json);
@@ -37,6 +38,11 @@ namespace BoxSimpleSync.API.Request
                 ModifiedAt = DateTime(jObject, "modified_at"),
                 Sha1 = Value(jObject, "sha1")
             };
+        }
+
+        public static List<File> FilesList(string json) {
+            var jObject = JObject.Parse(json);
+            return jObject["entries"].Children().ToList().Select(file => File(file.ToString())).ToList();
         }
 
         #endregion

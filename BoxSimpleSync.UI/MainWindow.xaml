@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MainWindow" Height="350" Width="525">
     <Grid>
-        <Button Content="Syncronize now!" HorizontalAlignment="Left" Margin="168,107,0,0" VerticalAlignment="Top" Width="142" Height="36" Click="SyncronizeNowClick"/>
-
+        <Button Content="Synchronize now!" HorizontalAlignment="Left" Margin="168,107,0,0" VerticalAlignment="Top" Width="142" Height="36" Click="SynchronizeNowClick"/>
     </Grid>
 </Window>
