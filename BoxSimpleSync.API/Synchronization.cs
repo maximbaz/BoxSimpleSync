@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
-using BoxSimpleSync.API.Helpers;
+using BoxSimpleSync.API.Comparisons;
 using BoxSimpleSync.API.Model;
 using BoxSimpleSync.API.Request;
 using File = BoxSimpleSync.API.Model.File;
@@ -13,6 +13,15 @@ namespace BoxSimpleSync.API
 {
     public class Synchronization
     {
+        #region Events
+
+        public event Action Authenticating;
+        public event Action Done;
+        public event Action Preparing;
+        public event Action Synchronizating;
+
+        #endregion
+
         #region Fields
 
         private readonly List<Pair<Folder>> foldersPairs = new List<Pair<Folder>>();
@@ -32,35 +41,138 @@ namespace BoxSimpleSync.API
         #region Public and Internal Methods
 
         public async Task Start(IEnumerable<Pair<string>> paths) {
-            if (api == null || UserIsLogOff) {
-                var authToken = await Authentication.Login("user", "password");
-                api = new Api(authToken);
+            try {
+                if (api == null || await UserIsLogOff()) {
+                    Fire(Authenticating);
+                    var authToken = await Authentication.Login("user", "password");
+                    api = new Api(authToken);
+                }
+                Fire(Preparing);
+                await BuildFoldersPairs(paths);
+                await BuildFoldersTrees();
+                Fire(Synchronizating);
+                await LookupChanges();
+                Fire(Done);
             }
-            await BuildFoldersPairs(paths);
-            await BuildFoldersTrees();
-            await LookupChanges();
-        }
 
-        #endregion
-
-        #region Protected and Private Properties and Indexers
-
-        protected bool UserIsLogOff {
-            get {
-                // Todo: it's not working solution
-                try {
-                    api.Folders.GetInfo("0");
-                    return false;
-                }
-                catch (Exception) {
-                    return true;
-                }
+            catch (Exception e) {
+                var msg = e.Message;
             }
         }
 
         #endregion
 
         #region Protected And Private Methods
+
+        private async Task<bool> UserIsLogOff() {
+            try {
+                await api.Folders.GetInfo("0");
+                return false;
+            }
+            catch (WebException e) {
+                if (((HttpWebResponse) e.Response).StatusCode == HttpStatusCode.Unauthorized) {
+                    return true;
+                }
+                throw;
+            }
+        }
+
+        private static void Fire(Action handler) {
+            if (handler != null) {
+                handler();
+            }
+        }
+
+        private async Task BuildFoldersTrees() {
+            foreach (var foldersPair in foldersPairs) {
+                await BuildFolderTree(foldersPair.Server);
+            }
+        }
+
+        private async Task BuildFolderTree(Folder serverFolder) {
+            var items = new List<Item>();
+
+            foreach (var item in serverFolder.Items) {
+                if (item.Type == "file") {
+                    items.Add(await api.Files.GetInfo(item.Id));
+                    continue;
+                }
+                var folder = await api.Folders.GetInfo(item.Id);
+                await BuildFolderTree(folder);
+                items.Add(folder);
+            }
+
+            serverFolder.Items = items;
+        }
+
+        private async Task BuildFoldersPairs(IEnumerable<Pair<string>> paths) {
+            foldersPairs.Clear();
+
+            foreach (var s in paths) {
+                if (!Directory.Exists(s.Local))
+                    Directory.CreateDirectory(s.Local);
+
+                var serverFolder = await api.Folders.GetInfo("0");
+                foreach (var path in s.Server.Split('/')) {
+                    var id = (from c in serverFolder.Items where c.Name == path select c.Id).SingleOrDefault();
+                    serverFolder = await (id != null ? api.Folders.GetInfo(id) : api.Folders.Create(path, serverFolder.Id));
+                }
+                foldersPairs.Add(new Pair<Folder>(serverFolder, s.Local));
+            }
+        }
+
+        private async Task LookupChanges() {
+            foreach (var foldersPair in foldersPairs) {
+                await SyncFolders(foldersPair);
+            }
+        }
+
+        private async Task SyncFolders(Pair<Folder> foldersPair) {
+            await SyncFiles(foldersPair);
+            var localFolders = Directory.GetDirectories(foldersPair.Local).ToList();
+
+            foreach (Folder serverFolder in foldersPair.Server.Items.Where(x => x.Type == "folder")) {
+                var localFolder = foldersPair.Local + "\\" + serverFolder.Name;
+                var pair = new Pair<Folder>(serverFolder, localFolder);
+                var folderWas = new FoldersComparison(pair);
+
+                var index = localFolders.IndexOf(localFolder);
+                if (index > -1) {
+                    localFolders.RemoveAt(index);
+                } else {
+                    if (folderWas.CreatedOnServer) {
+                        Directory.CreateDirectory(localFolder);
+                    } else if (folderWas.DeletedOnLocal) {
+                        // Todo: delete this directory on server after sync (all files will be already deleted)
+                    }
+                }
+                await SyncFolders(pair);
+            }
+
+            foreach (var localFolder in localFolders) {
+                var folderWas = new FoldersComparison(new Pair<Folder>(null, localFolder));
+                if (folderWas.DeletedOnServer) {
+                    // Todo: delete folder and clean up db
+                }
+                else
+                {
+                    var folderName = localFolder.Split(new[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries).Last();
+                    var serverFolder = await api.Folders.Create(folderName, foldersPair.Server.Id);
+                    await SyncFolders(new Pair<Folder>(serverFolder, localFolder));
+                    
+                }
+            }
+        }
+
+        private async Task SyncFiles(Pair<Folder> foldersPair) {
+            ProcessFilesResult filesTo;
+            ProcessServerFiles(foldersPair, out filesTo);
+            ProcessRestOfLocalFiles(filesTo);
+            ResolveConflicts(filesTo);
+            await UploadFiles(foldersPair, filesTo);
+            await DownloadFiles(filesTo);
+            await DeleteFiles(filesTo);
+        }
 
         private static void ProcessServerFiles(Pair<Folder> foldersPair, out ProcessFilesResult filesTo) {
             var localFiles = Directory.GetFiles(foldersPair.Local).ToList();
@@ -75,7 +187,7 @@ namespace BoxSimpleSync.API
                 if (index > -1) {
                     if (fileWas.PreviousStateIsUnknown) {
                         if (!fileWas.Updated) {
-                            FilesComparison.Save(localFile);
+                            FilesComparison.Save(localFile, File.ComputeSha1(localFile));
                         } else {
                             filesTo.ResolveConflict.Add(filesPair);
                         }
@@ -107,7 +219,7 @@ namespace BoxSimpleSync.API
 
                 if (fileWas.DeletedOnServer) {
                     System.IO.File.Delete(localFile);
-                    FilesComparison.Delete(localFile);
+                    FilesComparison.Remove(localFile);
                 } else {
                     filesTo.Upload.Add(localFile);
                 }
@@ -130,85 +242,10 @@ namespace BoxSimpleSync.API
             filesTo.ResolveConflict.Clear();
         }
 
-        private async Task BuildFoldersTrees() {
-            foreach (var foldersPair in foldersPairs) {
-                await BuildFolderPair(foldersPair.Server);
-            }
-        }
-
-        private async Task BuildFolderPair(Folder serverFolder) {
-            var items = new List<Item>();
-
-            foreach (var item in serverFolder.Items) {
-                if (item.Type == "file") {
-                    items.Add(await api.Files.GetInfo(item.Id));
-                    continue;
-                }
-                var folder = await api.Folders.GetInfo(item.Id);
-                await BuildFolderPair(folder);
-                items.Add(folder);
-            }
-
-            serverFolder.Items = items;
-        }
-
-        private async Task BuildFoldersPairs(IEnumerable<Pair<string>> paths) {
-            foldersPairs.Clear();
-
-            foreach (var s in paths) {
-                if (!Directory.Exists(s.Local))
-                    throw new ApplicationException(s.Local + " doesn't exist");
-
-                var serverFolder = await api.Folders.GetInfo("0");
-                foreach (var path in s.Server.Split('/')) {
-                    var id = (from c in serverFolder.Items where c.Name == path select c.Id).SingleOrDefault();
-                    serverFolder = await (id != null ? api.Folders.GetInfo(id) : api.Folders.Create(path, serverFolder.Id));
-                }
-                foldersPairs.Add(new Pair<Folder>(serverFolder, s.Local));
-            }
-        }
-
-        private async Task LookupChanges() {
-            foreach (var foldersPair in foldersPairs) {
-                await SyncFolders(foldersPair);
-            }
-        }
-
-        private async Task SyncFolders(Pair<Folder> foldersPair) {
-            await SyncFiles(foldersPair);
-            return;
-
-            var localFolders = Directory.GetDirectories(foldersPair.Local).ToList();
-
-            foreach (Folder serverFolder in foldersPair.Server.Items.Where(x => x.Type == "folder")) {
-                var index = localFolders.IndexOf(serverFolder.Name);
-                if (index > -1) {
-                    await SyncFolders(new Pair<Folder>(serverFolder, foldersPair.Local + "\\" + serverFolder.Name));
-                } else {
-                    // Todo: download folder and it's content
-                }
-                localFolders.RemoveAt(index);
-            }
-
-            foreach (var localFolder in localFolders) {
-                // Todo: upload folder and it's content
-            }
-        }
-
-        private async Task SyncFiles(Pair<Folder> foldersPair) {
-            ProcessFilesResult filesTo;
-            ProcessServerFiles(foldersPair, out filesTo);
-            ProcessRestOfLocalFiles(filesTo);
-            ResolveConflicts(filesTo);
-            await UploadFiles(foldersPair, filesTo);
-            await DownloadFiles(filesTo);
-            await DeleteFiles(filesTo);
-        }
-
         private async Task DeleteFiles(ProcessFilesResult filesTo) {
             foreach (var file in filesTo.DeleteOnServer) {
                 await api.Files.Delete(file.Server.Id);
-                FilesComparison.Delete(file.Local);
+                FilesComparison.Remove(file.Local);
             }
 
             filesTo.DeleteOnServer.Clear();
@@ -217,7 +254,7 @@ namespace BoxSimpleSync.API
         private async Task DownloadFiles(ProcessFilesResult filesTo) {
             foreach (var file in filesTo.Download) {
                 await api.Files.Download(file.Server.Id, file.Local);
-                FilesComparison.Save(file.Local);
+                FilesComparison.Save(file.Local, File.ComputeSha1(file.Local));
             }
 
             filesTo.Download.Clear();
@@ -229,7 +266,7 @@ namespace BoxSimpleSync.API
 
             await api.Files.Upload(filesTo.Upload, foldersPair.Server.Id);
             foreach (var file in filesTo.Upload) {
-                FilesComparison.Save(file);
+                FilesComparison.Save(file, File.ComputeSha1(file));
             }
 
             filesTo.Upload.Clear();

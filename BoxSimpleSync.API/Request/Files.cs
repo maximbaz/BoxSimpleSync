@@ -106,7 +106,7 @@ namespace BoxSimpleSync.API.Request
 
             var streamWillExceedCapacity = new Func<MemoryStream, byte[], bool>((stream, file) => stream.Length + formattedBoundary.Length + file.Length + additionalData.Length > stream.Capacity);
 
-            // Todo: get rid of this when API will be fixed ------------------->
+            // Todo: get rid of this when API will be fixed
             var numberOfFilesCanBeUploadedPerSingleRequest = 20;
             var getStreamData = new Func<MemoryStream, byte[]>(stream => stream.Length == stream.Capacity ? stream.GetBuffer() : stream.ToArray());
             // <------------------------------------------------------------

@@ -59,7 +59,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Api.cs" />
-    <Compile Include="Helpers\FilesComparison.cs" />
+    <Compile Include="Comparisons\ItemsComparison.cs" />
+    <Compile Include="Helpers\Db.cs" />
+    <Compile Include="Comparisons\FilesComparison.cs" />
+    <Compile Include="Comparisons\FoldersComparison.cs" />
+    <Compile Include="Model\DbItem.cs" />
     <Compile Include="Model\File.cs" />
     <Compile Include="Model\Pair.cs" />
     <Compile Include="Request\Authentication.cs" />

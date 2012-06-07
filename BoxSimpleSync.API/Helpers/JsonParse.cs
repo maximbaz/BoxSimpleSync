@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using BoxSimpleSync.API.Model;
@@ -22,9 +21,7 @@ namespace BoxSimpleSync.API.Helpers
             return new Folder {
                 Id = Value(jObject, "id"),
                 Name = Value(jObject, "name"),
-                ParentId = Value(jObject, "parent", "id"),
-                CreatedAt = DateTime(jObject, "created_at"),
-                ModifiedAt = DateTime(jObject, "modified_at"),
+                Sha1 = Value(jObject, "sha1"),
                 Items = items
             };
         }
@@ -34,8 +31,6 @@ namespace BoxSimpleSync.API.Helpers
             return new File {
                 Id = Value(jObject, "id"),
                 Name = Value(jObject, "name"),
-                CreatedAt = DateTime(jObject, "created_at"),
-                ModifiedAt = DateTime(jObject, "modified_at"),
                 Sha1 = Value(jObject, "sha1")
             };
         }
@@ -57,11 +52,6 @@ namespace BoxSimpleSync.API.Helpers
                 result = result[key];
             }
             return result == null ? null : result.ToString();
-        }
-
-        private static DateTime DateTime(JToken obj, params string[] keys) {
-            DateTime result;
-            return System.DateTime.TryParse(Value(obj, keys), out result) ? result : new DateTime();
         }
 
         #endregion

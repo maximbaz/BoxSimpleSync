@@ -16,7 +16,6 @@ namespace BoxSimpleSync.API.Model
 
         #region Public and Internal Properties and Indexers
 
-        public string ParentId { get; set; }
         public List<Item> Items { get; set; }
 
         #endregion

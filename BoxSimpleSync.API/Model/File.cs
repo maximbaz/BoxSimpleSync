@@ -1,10 +1,8 @@
 using System;
-using System.Diagnostics;
 using System.Security.Cryptography;
 
 namespace BoxSimpleSync.API.Model
 {
-    [DebuggerDisplay("Id = {Id}, Name = {Name}, Sha1 = {Sha1}")]
     public class File : Item
     {
         #region Constructors and Destructor
@@ -12,12 +10,6 @@ namespace BoxSimpleSync.API.Model
         public File() {
             Type = "file";
         }
-
-        #endregion
-
-        #region Public and Internal Properties and Indexers
-
-        public string Sha1 { get; set; }
 
         #endregion
 

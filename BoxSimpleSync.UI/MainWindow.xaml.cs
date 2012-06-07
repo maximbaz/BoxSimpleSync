@@ -17,7 +17,12 @@ namespace BoxSimpleSync.UI
 
         public MainWindow() {
             InitializeComponent();
+
             synchronization = new Synchronization();
+            synchronization.Authenticating += () => Status.Content = "Authenticating ...";
+            synchronization.Preparing += () => Status.Content = "... Preparing ...";
+            synchronization.Synchronizating += () => Status.Content = "... Synchronizating ...";
+            synchronization.Done += () => Status.Content = "... Done!";
         }
 
         #endregion
