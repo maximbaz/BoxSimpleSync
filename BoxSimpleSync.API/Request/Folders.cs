@@ -36,6 +36,10 @@ namespace BoxSimpleSync.API.Request
             return JsonParse.Folder(await HttpRequest.Post(string.Format(Url, parent), string.Format("{{\"name\":\"{0}\"}}", name), authToken));
         }
 
+        public Task Delete(string id) {
+            return HttpRequest.Delete(string.Format(Url, id), authToken);
+        }
+
         #endregion
     }
 }

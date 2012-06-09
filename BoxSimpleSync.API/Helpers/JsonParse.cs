@@ -21,7 +21,6 @@ namespace BoxSimpleSync.API.Helpers
             return new Folder {
                 Id = Value(jObject, "id"),
                 Name = Value(jObject, "name"),
-                Sha1 = Value(jObject, "sha1"),
                 Items = items
             };
         }

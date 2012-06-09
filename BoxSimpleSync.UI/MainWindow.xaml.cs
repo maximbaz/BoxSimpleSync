@@ -22,7 +22,11 @@ namespace BoxSimpleSync.UI
             synchronization.Authenticating += () => Status.Content = "Authenticating ...";
             synchronization.Preparing += () => Status.Content = "... Preparing ...";
             synchronization.Synchronizating += () => Status.Content = "... Synchronizating ...";
+            synchronization.Downloading += () => Status.Content = "... Downloading ...";
+            synchronization.Uploading += () => Status.Content = "... Uploading ...";
+            synchronization.Deleting += () => Status.Content = "... Deleting ...";
             synchronization.Done += () => Status.Content = "... Done!";
+            synchronization.Error += () => Status.Content = "... Error!";
         }
 
         #endregion

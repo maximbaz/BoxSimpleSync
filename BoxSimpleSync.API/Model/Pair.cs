@@ -1,8 +1,5 @@
-﻿using System.Diagnostics;
-
-namespace BoxSimpleSync.API.Model
+﻿namespace BoxSimpleSync.API.Model
 {
-    [DebuggerDisplay("Server = {Server}, Local = {Local}")]
     public class Pair<T>
     {
         #region Constructors and Destructor

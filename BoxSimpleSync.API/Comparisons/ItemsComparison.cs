@@ -32,8 +32,8 @@ namespace BoxSimpleSync.API.Comparisons
             get { return ExistsInDb; }
         }
 
-        public bool DeletedOnLocal {
-            get { return ServerIdenticalToDb; }
+        public bool PreviousStateIsUnknown {
+            get { return !ExistsInDb; }
         }
 
         #endregion
@@ -41,18 +41,11 @@ namespace BoxSimpleSync.API.Comparisons
         #region Protected and Private Properties and Indexers
 
         protected bool ExistsInDb {
-            get { return (from f in Query where f.FullPath == Items.Local select f).Any(); }
+            get { return (from f in Query<MiniItem>() where f.FullPath == Items.Local select f).Any(); }
         }
 
-        protected bool ServerIdenticalToDb {
-            get {
-                var dbItem = (from f in Query where f.FullPath == Items.Local select f).Single();
-                return dbItem.Sha1 == Items.Server.Sha1;
-            }
-        }
-
-        protected IQueryable<DbItem> Query {
-            get { return QueryTo(collection); }
+        protected virtual IQueryable<TMini> Query<TMini>() where TMini:MiniItem {
+            return QueryTo<TMini>(collection);
         }
 
         #endregion
@@ -63,14 +56,16 @@ namespace BoxSimpleSync.API.Comparisons
             Db.Remove(collection, "FullPath", item);
         }
 
-        protected static void Save(string folder, string sha1, string collection) {
-            var item = (from f in QueryTo(collection) where f.FullPath == folder select f).SingleOrDefault() ?? new DbItem {FullPath = folder};
-            item.Sha1 = sha1;
+        protected static TMini Get<TMini>(string fullPath, string collection) where TMini : MiniItem {
+            return (from f in QueryTo<TMini>(collection) where f.FullPath == fullPath select f).SingleOrDefault();
+        }
+
+        protected static void Save<TMini>(TMini item, string collection) where TMini : MiniItem {
             Db.Save(collection, item);
         }
 
-        protected static IQueryable<DbItem> QueryTo(string collection) {
-            return Db.Collection<DbItem>(collection);
+        protected static IQueryable<TMini> QueryTo<TMini>(string collection) where TMini : MiniItem {
+            return Db.Collection<TMini>(collection);
         }
 
         #endregion

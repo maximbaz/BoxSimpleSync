@@ -8,6 +8,7 @@ using BoxSimpleSync.API.Comparisons;
 using BoxSimpleSync.API.Model;
 using BoxSimpleSync.API.Request;
 using File = BoxSimpleSync.API.Model.File;
+using IOFile = System.IO.File;
 
 namespace BoxSimpleSync.API
 {
@@ -16,9 +17,13 @@ namespace BoxSimpleSync.API
         #region Events
 
         public event Action Authenticating;
+        public event Action Deleting;
         public event Action Done;
+        public event Action Downloading;
+        public event Action Error;
         public event Action Preparing;
         public event Action Synchronizating;
+        public event Action Uploading;
 
         #endregion
 
@@ -47,16 +52,34 @@ namespace BoxSimpleSync.API
                     var authToken = await Authentication.Login("user", "password");
                     api = new Api(authToken);
                 }
+
                 Fire(Preparing);
                 await BuildFoldersPairs(paths);
                 await BuildFoldersTrees();
+
                 Fire(Synchronizating);
-                await LookupChanges();
+                var foldersTo = new ProcessResult<Folder>();
+                var filesTo = new ProcessResult<File>();
+                await LookupChanges(foldersTo, filesTo);
+
+                Fire(Uploading);
+                await UploadFiles(filesTo);
+
+                Fire(Downloading);
+                await DownloadFiles(filesTo);
+
+                Fire(Deleting);
+                await DeleteFiles(filesTo);
+                await DeleteFolders(foldersTo);
+
                 Fire(Done);
             }
 
             catch (Exception e) {
+// ReSharper disable UnusedVariable
+                Fire(Error);
                 var msg = e.Message;
+// ReSharper restore UnusedVariable
             }
         }
 
@@ -121,14 +144,25 @@ namespace BoxSimpleSync.API
             }
         }
 
-        private async Task LookupChanges() {
+        private async Task LookupChanges(ProcessResult<Folder> foldersTo, ProcessResult<File> filesTo) {
             foreach (var foldersPair in foldersPairs) {
-                await SyncFolders(foldersPair);
+                await SyncFolders(foldersPair, foldersTo, filesTo);
             }
         }
 
-        private async Task SyncFolders(Pair<Folder> foldersPair) {
-            await SyncFiles(foldersPair);
+        private async Task SyncFolders(Pair<Folder> foldersPair, ProcessResult<Folder> foldersTo, ProcessResult<File> filesTo) {
+            SyncFiles(foldersPair, filesTo);
+            await ProcessServerFolders(foldersPair, foldersTo, filesTo);
+            await ProcessRestOfLocalFolders(foldersTo, filesTo, foldersPair.Server.Id);
+        }
+
+        private static void SyncFiles(Pair<Folder> foldersPair, ProcessResult<File> filesTo) {
+            ProcessServerFiles(foldersPair, filesTo);
+            ProcessRestOfLocalFiles(filesTo, foldersPair.Server.Id);
+            ResolveConflicts(filesTo, foldersPair.Server.Id);
+        }
+
+        private async Task ProcessServerFolders(Pair<Folder> foldersPair, ProcessResult<Folder> foldersTo, ProcessResult<File> filesTo) {
             var localFolders = Directory.GetDirectories(foldersPair.Local).ToList();
 
             foreach (Folder serverFolder in foldersPair.Server.Items.Where(x => x.Type == "folder")) {
@@ -138,45 +172,27 @@ namespace BoxSimpleSync.API
 
                 var index = localFolders.IndexOf(localFolder);
                 if (index > -1) {
+                    if(folderWas.PreviousStateIsUnknown) {
+                        FoldersComparison.Save(localFolder);
+                    }
                     localFolders.RemoveAt(index);
                 } else {
                     if (folderWas.CreatedOnServer) {
                         Directory.CreateDirectory(localFolder);
-                    } else if (folderWas.DeletedOnLocal) {
-                        // Todo: delete this directory on server after sync (all files will be already deleted)
+                        FoldersComparison.Save(localFolder);
+                    } else {
+                        foldersTo.DeleteOnServer.Add(foldersPair);
+                        FoldersComparison.Remove(localFolder);
                     }
                 }
-                await SyncFolders(pair);
+                await SyncFolders(pair, foldersTo, filesTo);
             }
 
-            foreach (var localFolder in localFolders) {
-                var folderWas = new FoldersComparison(new Pair<Folder>(null, localFolder));
-                if (folderWas.DeletedOnServer) {
-                    // Todo: delete folder and clean up db
-                }
-                else
-                {
-                    var folderName = localFolder.Split(new[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries).Last();
-                    var serverFolder = await api.Folders.Create(folderName, foldersPair.Server.Id);
-                    await SyncFolders(new Pair<Folder>(serverFolder, localFolder));
-                    
-                }
-            }
+            foldersTo.Process.AddRange(localFolders);
         }
 
-        private async Task SyncFiles(Pair<Folder> foldersPair) {
-            ProcessFilesResult filesTo;
-            ProcessServerFiles(foldersPair, out filesTo);
-            ProcessRestOfLocalFiles(filesTo);
-            ResolveConflicts(filesTo);
-            await UploadFiles(foldersPair, filesTo);
-            await DownloadFiles(filesTo);
-            await DeleteFiles(filesTo);
-        }
-
-        private static void ProcessServerFiles(Pair<Folder> foldersPair, out ProcessFilesResult filesTo) {
+        private static void ProcessServerFiles(Pair<Folder> foldersPair, ProcessResult<File> filesTo) {
             var localFiles = Directory.GetFiles(foldersPair.Local).ToList();
-            filesTo = new ProcessFilesResult();
 
             foreach (File serverFile in foldersPair.Server.Items.Where(x => x.Type == "file")) {
                 var localFile = foldersPair.Local + "\\" + serverFile.Name;
@@ -194,7 +210,7 @@ namespace BoxSimpleSync.API
                     } else if (fileWas.UpdatedOnServer) {
                         filesTo.Download.Add(filesPair);
                     } else if (fileWas.UpdatedOnLocal) {
-                        filesTo.Upload.Add(localFile);
+                        filesTo.Upload.Add(localFile, foldersPair.Server.Id);
                     } else if (fileWas.Updated) {
                         filesTo.ResolveConflict.Add(filesPair);
                     }
@@ -213,36 +229,53 @@ namespace BoxSimpleSync.API
             filesTo.Process.AddRange(localFiles);
         }
 
-        private static void ProcessRestOfLocalFiles(ProcessFilesResult filesTo) {
+        private static void ProcessRestOfLocalFiles(ProcessResult<File> filesTo, string folderId) {
             foreach (var localFile in filesTo.Process) {
                 var fileWas = new FilesComparison(new Pair<File>(null, localFile));
 
                 if (fileWas.DeletedOnServer) {
-                    System.IO.File.Delete(localFile);
+                    IOFile.Delete(localFile);
                     FilesComparison.Remove(localFile);
                 } else {
-                    filesTo.Upload.Add(localFile);
+                    filesTo.Upload.Add(localFile, folderId);
                 }
             }
 
             filesTo.Process.Clear();
         }
 
-        private static void ResolveConflicts(ProcessFilesResult filesTo) {
+        private async Task ProcessRestOfLocalFolders(ProcessResult<Folder> foldersTo, ProcessResult<File> filesTo, string folderId) {
+            foreach (var localFolder in foldersTo.Process) {
+                var folderWas = new FoldersComparison(new Pair<Folder>(null, localFolder));
+                if (folderWas.DeletedOnServer) {
+                    Directory.Delete(localFolder);
+                    FoldersComparison.Remove(localFolder);
+                } else {
+                    var folderName = localFolder.Split(new[] {Path.DirectorySeparatorChar}, StringSplitOptions.RemoveEmptyEntries).Last();
+                    var serverFolder = await api.Folders.Create(folderName, folderId);
+                    // Bug: Calling SyncFolders before cleaning up foldersTo.Process cause infinite loop.
+                    await SyncFolders(new Pair<Folder>(serverFolder, localFolder), foldersTo, filesTo);
+                }
+            }
+
+            foldersTo.Process.Clear();
+        }
+
+        private static void ResolveConflicts(ProcessResult<File> filesTo, string folderId) {
             foreach (var file in filesTo.ResolveConflict) {
                 var newName = string.Format("{0}\\{1} [Conflicted Copy {2}]{3}",
                                             Path.GetDirectoryName(file.Local),
                                             Path.GetFileNameWithoutExtension(file.Local),
                                             DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss"),
                                             Path.GetExtension(file.Local));
-                System.IO.File.Move(file.Local, newName);
+                IOFile.Move(file.Local, newName);
                 filesTo.Download.Add(file);
-                filesTo.Upload.Add(newName);
+                filesTo.Upload.Add(newName, folderId);
             }
             filesTo.ResolveConflict.Clear();
         }
 
-        private async Task DeleteFiles(ProcessFilesResult filesTo) {
+        private async Task DeleteFiles(ProcessResult<File> filesTo) {
             foreach (var file in filesTo.DeleteOnServer) {
                 await api.Files.Delete(file.Server.Id);
                 FilesComparison.Remove(file.Local);
@@ -251,7 +284,16 @@ namespace BoxSimpleSync.API
             filesTo.DeleteOnServer.Clear();
         }
 
-        private async Task DownloadFiles(ProcessFilesResult filesTo) {
+        private async Task DeleteFolders(ProcessResult<Folder> foldersTo) {
+            foreach (var folder in foldersTo.DeleteOnServer) {
+                await api.Folders.Delete(folder.Server.Id);
+                FoldersComparison.Remove(folder.Local);
+            }
+
+            foldersTo.DeleteOnServer.Clear();
+        }
+
+        private async Task DownloadFiles(ProcessResult<File> filesTo) {
             foreach (var file in filesTo.Download) {
                 await api.Files.Download(file.Server.Id, file.Local);
                 FilesComparison.Save(file.Local, File.ComputeSha1(file.Local));
@@ -260,12 +302,15 @@ namespace BoxSimpleSync.API
             filesTo.Download.Clear();
         }
 
-        private async Task UploadFiles(Pair<Folder> foldersPair, ProcessFilesResult filesTo) {
+        private async Task UploadFiles(ProcessResult<File> filesTo) {
             if (filesTo.Upload.Count < 1)
                 return;
 
-            await api.Files.Upload(filesTo.Upload, foldersPair.Server.Id);
-            foreach (var file in filesTo.Upload) {
+            foreach (var files in filesTo.Upload) {
+                await api.Files.Upload(files.Value, files.Key);
+            }
+
+            foreach (var file in filesTo.Upload.SelectMany(files => files.Value)) {
                 FilesComparison.Save(file, File.ComputeSha1(file));
             }
 
@@ -274,17 +319,17 @@ namespace BoxSimpleSync.API
 
         #endregion
 
-        #region Nested type: ProcessFilesResult
+        #region Nested type: ProcessResult
 
-        private class ProcessFilesResult
+        private class ProcessResult<T> where T : Item
         {
             #region Constructors and Destructor
 
-            public ProcessFilesResult() {
-                Upload = new List<string>();
-                Download = new List<Pair<File>>();
-                DeleteOnServer = new List<Pair<File>>();
-                ResolveConflict = new List<Pair<File>>();
+            public ProcessResult() {
+                Upload = new UploadInfo();
+                Download = new List<Pair<T>>();
+                DeleteOnServer = new List<Pair<T>>();
+                ResolveConflict = new List<Pair<T>>();
                 Process = new List<string>();
             }
 
@@ -292,11 +337,30 @@ namespace BoxSimpleSync.API
 
             #region Public and Internal Properties and Indexers
 
-            public List<Pair<File>> ResolveConflict { get; private set; }
-            public List<Pair<File>> Download { get; private set; }
-            public List<string> Upload { get; private set; }
-            public List<Pair<File>> DeleteOnServer { get; private set; }
+            public List<Pair<T>> ResolveConflict { get; private set; }
+            public List<Pair<T>> Download { get; private set; }
+            public UploadInfo Upload { get; private set; }
+            public List<Pair<T>> DeleteOnServer { get; private set; }
             public List<string> Process { get; private set; }
+
+            #endregion
+        }
+
+        #endregion
+
+        #region Nested type: UploadInfo
+
+        private class UploadInfo : Dictionary<string, List<string>>
+        {
+            #region Public and Internal Methods
+
+            public void Add(string path, string parentId) {
+                if (!ContainsKey(parentId)) {
+                    this[parentId] = new List<string> {path};
+                } else {
+                    this[parentId].Add(path);
+                }
+            }
 
             #endregion
         }

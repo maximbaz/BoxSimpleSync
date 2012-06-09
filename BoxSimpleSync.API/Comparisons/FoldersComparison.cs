@@ -22,8 +22,8 @@ namespace BoxSimpleSync.API.Comparisons
             Remove(item, Collection);
         }
 
-        public static void Save(string folder, string sha1) {
-            Save(folder, sha1, Collection);
+        public static void Save(string folder) {
+            Save(Get<MiniItem>(folder, Collection) ?? new MiniItem {FullPath = folder}, Collection);
         }
 
         #endregion

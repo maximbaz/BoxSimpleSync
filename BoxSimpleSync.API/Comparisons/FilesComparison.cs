@@ -1,5 +1,4 @@
 using System.Linq;
-using BoxSimpleSync.API.Helpers;
 using BoxSimpleSync.API.Model;
 
 namespace BoxSimpleSync.API.Comparisons
@@ -32,8 +31,8 @@ namespace BoxSimpleSync.API.Comparisons
             get { return !ServerIdenticalToDb && LocalIdenticalToDb; }
         }
 
-        public bool PreviousStateIsUnknown {
-            get { return !ExistsInDb; }
+        public bool DeletedOnLocal {
+            get { return ServerIdenticalToDb; }
         }
 
         #endregion
@@ -44,13 +43,22 @@ namespace BoxSimpleSync.API.Comparisons
             Remove(item, Collection);
         }
 
-        public static void Save(string folder, string sha1) {
-            Save(folder, sha1, Collection);
+        public static void Save(string fullPath, string sha1) {
+            var item = Get<MiniFile>(fullPath, Collection) ?? new MiniFile {FullPath = fullPath};
+            item.Sha1 = sha1;
+            Save(item, Collection);
         }
 
         #endregion
 
         #region Protected and Private Properties and Indexers
+
+        protected bool ServerIdenticalToDb {
+            get {
+                var dbItem = (from f in Query<MiniFile>() where f.FullPath == Items.Local select f).Single();
+                return dbItem.Sha1 == Items.Server.Sha1;
+            }
+        }
 
         protected bool LocalIdenticalToServer {
             get { return File.ComputeSha1(Items.Local) == Items.Server.Sha1; }
@@ -58,7 +66,7 @@ namespace BoxSimpleSync.API.Comparisons
 
         protected bool LocalIdenticalToDb {
             get {
-                var miniFile = (from f in Query where f.FullPath == Items.Local select f).Single();
+                var miniFile = (from f in Query<MiniFile>() where f.FullPath == Items.Local select f).Single();
                 return File.ComputeSha1(Items.Local) == miniFile.Sha1;
             }
         }
