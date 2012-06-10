@@ -1,4 +1,5 @@
 using System.Linq;
+using BoxSimpleSync.API.Model;
 using FluentMongo.Linq;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -14,11 +15,12 @@ namespace BoxSimpleSync.API.Helpers
             return MongoDb.GetCollection<T>(name).AsQueryable();
         }
 
-        public static void Save<T>(string collection, T data) {
+        public static void Save<T>(T data, string collection) {
             MongoDb.GetCollection<T>(collection).Save(data);
         }
 
-        public static void Remove(string collection, string name, BsonValue value) {
+        public static void Remove(string name, BsonValue value, string collection)
+        {
             MongoDb.GetCollection(collection).Remove(Query.EQ(name, value));
         }
 

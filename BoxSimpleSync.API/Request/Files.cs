@@ -97,11 +97,14 @@ namespace BoxSimpleSync.API.Request
         }
 
         private async Task<IEnumerable<byte[]>> AssembleFilesBlock(ICollection<string> filePaths, byte[] additionalData) {
-            const int assembleFileExtraBytes = 146;
+            const int assembleFileExtraBytes = 134;
             var result = new List<byte[]>();
 
             var formattedBoundary = GetFormattedBoundary(false);
-            var needSize = (from f in filePaths select new FileInfo(f).Length).Sum() + (formattedBoundary.Length + assembleFileExtraBytes) * filePaths.Count + additionalData.Length;
+            var needSize = (from f in filePaths select new FileInfo(f).Length).Sum() +
+                           (from f in filePaths select Path.GetFileName(f).Length).Sum() +
+                           (formattedBoundary.Length + assembleFileExtraBytes) * filePaths.Count +
+                           additionalData.Length;
             var memoryStream = new MemoryStream((int) Math.Min(needSize, int.MaxValue));
 
             var streamWillExceedCapacity = new Func<MemoryStream, byte[], bool>((stream, file) => stream.Length + formattedBoundary.Length + file.Length + additionalData.Length > stream.Capacity);

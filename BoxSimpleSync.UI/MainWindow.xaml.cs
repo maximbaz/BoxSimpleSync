@@ -21,7 +21,7 @@ namespace BoxSimpleSync.UI
             synchronization = new Synchronization();
             synchronization.Authenticating += () => Status.Content = "Authenticating ...";
             synchronization.Preparing += () => Status.Content = "... Preparing ...";
-            synchronization.Synchronizating += () => Status.Content = "... Synchronizating ...";
+            synchronization.Synchronizing += () => Status.Content = "... Synchronizing ...";
             synchronization.Downloading += () => Status.Content = "... Downloading ...";
             synchronization.Uploading += () => Status.Content = "... Uploading ...";
             synchronization.Deleting += () => Status.Content = "... Deleting ...";
@@ -35,7 +35,7 @@ namespace BoxSimpleSync.UI
 
         private void SynchronizeNowClick(object sender, RoutedEventArgs e) {
             var paths = new List<Pair<string>> {
-                new Pair<string>("test/test1", @"E:\boxSyncTest1")
+                new Pair<string>("test/test1", @"E:\boxSyncTest1"),
             };
 
             synchronization.Start(paths);

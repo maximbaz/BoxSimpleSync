@@ -44,16 +44,22 @@ namespace BoxSimpleSync.API.Comparisons
             get { return (from f in Query<MiniItem>() where f.FullPath == Items.Local select f).Any(); }
         }
 
-        protected virtual IQueryable<TMini> Query<TMini>() where TMini:MiniItem {
-            return QueryTo<TMini>(collection);
-        }
-
         #endregion
 
         #region Protected And Private Methods
 
+        protected virtual IQueryable<TMini> Query<TMini>() where TMini : MiniItem {
+            return QueryTo<TMini>(collection);
+        }
+
         protected static void Remove(string item, string collection) {
-            Db.Remove(collection, "FullPath", item);
+            Db.Remove("FullPath", item, collection);
+        }
+
+        protected static void RemoveByPattern<TMini>(string value, string collection) where TMini : MiniItem {
+            foreach (var item in QueryTo<TMini>(collection).AsQueryable<TMini>().Where(x => x.FullPath.Contains(value))) {
+                Remove(item.FullPath, collection);
+            }
         }
 
         protected static TMini Get<TMini>(string fullPath, string collection) where TMini : MiniItem {
@@ -61,7 +67,7 @@ namespace BoxSimpleSync.API.Comparisons
         }
 
         protected static void Save<TMini>(TMini item, string collection) where TMini : MiniItem {
-            Db.Save(collection, item);
+            Db.Save(item, collection);
         }
 
         protected static IQueryable<TMini> QueryTo<TMini>(string collection) where TMini : MiniItem {

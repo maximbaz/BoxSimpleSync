@@ -19,7 +19,8 @@ namespace BoxSimpleSync.API.Comparisons
         #region Public and Internal Methods
 
         public static void Remove(string item) {
-            Remove(item, Collection);
+            RemoveByPattern<MiniItem>(item, Collection);
+            FilesComparison.RemoveByPattern(item);
         }
 
         public static void Save(string folder) {

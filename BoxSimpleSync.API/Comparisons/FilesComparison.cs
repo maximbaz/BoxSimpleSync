@@ -43,6 +43,10 @@ namespace BoxSimpleSync.API.Comparisons
             Remove(item, Collection);
         }
 
+        public static void RemoveByPattern(string item) {
+            RemoveByPattern<MiniFile>(item, Collection);
+        }
+
         public static void Save(string fullPath, string sha1) {
             var item = Get<MiniFile>(fullPath, Collection) ?? new MiniFile {FullPath = fullPath};
             item.Sha1 = sha1;

@@ -22,7 +22,7 @@ namespace BoxSimpleSync.API
         public event Action Downloading;
         public event Action Error;
         public event Action Preparing;
-        public event Action Synchronizating;
+        public event Action Synchronizing;
         public event Action Uploading;
 
         #endregion
@@ -57,7 +57,7 @@ namespace BoxSimpleSync.API
                 await BuildFoldersPairs(paths);
                 await BuildFoldersTrees();
 
-                Fire(Synchronizating);
+                Fire(Synchronizing);
                 var foldersTo = new ProcessResult<Folder>();
                 var filesTo = new ProcessResult<File>();
                 await LookupChanges(foldersTo, filesTo);
@@ -172,7 +172,7 @@ namespace BoxSimpleSync.API
 
                 var index = localFolders.IndexOf(localFolder);
                 if (index > -1) {
-                    if(folderWas.PreviousStateIsUnknown) {
+                    if (folderWas.PreviousStateIsUnknown) {
                         FoldersComparison.Save(localFolder);
                     }
                     localFolders.RemoveAt(index);
@@ -181,8 +181,8 @@ namespace BoxSimpleSync.API
                         Directory.CreateDirectory(localFolder);
                         FoldersComparison.Save(localFolder);
                     } else {
-                        foldersTo.DeleteOnServer.Add(foldersPair);
-                        FoldersComparison.Remove(localFolder);
+                        foldersTo.DeleteOnServer.Add(pair);
+                        continue;
                     }
                 }
                 await SyncFolders(pair, foldersTo, filesTo);
@@ -245,20 +245,21 @@ namespace BoxSimpleSync.API
         }
 
         private async Task ProcessRestOfLocalFolders(ProcessResult<Folder> foldersTo, ProcessResult<File> filesTo, string folderId) {
-            foreach (var localFolder in foldersTo.Process) {
+            var foldersToProcess = foldersTo.Process;
+            foldersTo.Process = new List<string>();
+
+            foreach (var localFolder in foldersToProcess) {
                 var folderWas = new FoldersComparison(new Pair<Folder>(null, localFolder));
                 if (folderWas.DeletedOnServer) {
-                    Directory.Delete(localFolder);
+                    Directory.Delete(localFolder, true);
                     FoldersComparison.Remove(localFolder);
                 } else {
                     var folderName = localFolder.Split(new[] {Path.DirectorySeparatorChar}, StringSplitOptions.RemoveEmptyEntries).Last();
                     var serverFolder = await api.Folders.Create(folderName, folderId);
-                    // Bug: Calling SyncFolders before cleaning up foldersTo.Process cause infinite loop.
+                    FoldersComparison.Save(localFolder);
                     await SyncFolders(new Pair<Folder>(serverFolder, localFolder), foldersTo, filesTo);
                 }
             }
-
-            foldersTo.Process.Clear();
         }
 
         private static void ResolveConflicts(ProcessResult<File> filesTo, string folderId) {
@@ -341,7 +342,7 @@ namespace BoxSimpleSync.API
             public List<Pair<T>> Download { get; private set; }
             public UploadInfo Upload { get; private set; }
             public List<Pair<T>> DeleteOnServer { get; private set; }
-            public List<string> Process { get; private set; }
+            public List<string> Process { get; set; }
 
             #endregion
         }
