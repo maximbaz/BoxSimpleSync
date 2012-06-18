@@ -5,6 +5,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoxSimpleSync.UI", "BoxSimp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoxSimpleSync.API", "BoxSimpleSync.API\BoxSimpleSync.API.csproj", "{FB47022D-EA0F-45E5-856A-163471218893}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoxSimpleSync.Tests", "BoxSimpleSync.Tests\BoxSimpleSync.Tests.csproj", "{DA37A3BF-66C4-49CE-B842-7264573952BB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -25,6 +27,16 @@ Global
 		{932C48ED-0642-41F9-A56C-428626EAB625}.Release|Mixed Platforms.Build.0 = Release|x86
 		{932C48ED-0642-41F9-A56C-428626EAB625}.Release|x86.ActiveCfg = Release|x86
 		{932C48ED-0642-41F9-A56C-428626EAB625}.Release|x86.Build.0 = Release|x86
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{DA37A3BF-66C4-49CE-B842-7264573952BB}.Release|x86.ActiveCfg = Release|Any CPU
 		{FB47022D-EA0F-45E5-856A-163471218893}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{FB47022D-EA0F-45E5-856A-163471218893}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FB47022D-EA0F-45E5-856A-163471218893}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU

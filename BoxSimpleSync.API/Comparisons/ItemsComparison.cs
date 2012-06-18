@@ -8,15 +8,13 @@ namespace BoxSimpleSync.API.Comparisons
     {
         #region Fields
 
-        protected readonly Pair<T> Items;
         private readonly string collection;
 
         #endregion
 
         #region Constructors and Destructor
 
-        protected ItemsComparison(Pair<T> items, string collection) {
-            Items = items;
+        protected ItemsComparison(string collection) {
             this.collection = collection;
         }
 
@@ -24,29 +22,31 @@ namespace BoxSimpleSync.API.Comparisons
 
         #region Public and Internal Properties and Indexers
 
-        public bool CreatedOnServer {
-            get { return !ExistsInDb; }
-        }
-
-        public bool DeletedOnServer {
-            get { return ExistsInDb; }
-        }
-
-        public bool PreviousStateIsUnknown {
-            get { return !ExistsInDb; }
-        }
+        public Pair<T> Items { get; set; }
 
         #endregion
 
-        #region Protected and Private Properties and Indexers
+        #region Public and Internal Methods
 
-        protected bool ExistsInDb {
-            get { return (from f in Query<MiniItem>() where f.FullPath == Items.Local select f).Any(); }
+        public bool CreatedOnServer<TMini>() where TMini : MiniItem {
+            return !ExistsInDb<TMini>();
+        }
+
+        public bool DeletedOnServer<TMini>() where TMini : MiniItem {
+            return ExistsInDb<TMini>();
+        }
+
+        public bool PreviousStateIsUnknown<TMini>() where TMini : MiniItem {
+            return !ExistsInDb<TMini>();
         }
 
         #endregion
 
         #region Protected And Private Methods
+
+        protected bool ExistsInDb<TMini>() where TMini : MiniItem {
+            return (from f in Query<TMini>() where f.FullPath == Items.Local select f).Any();
+        }
 
         protected virtual IQueryable<TMini> Query<TMini>() where TMini : MiniItem {
             return QueryTo<TMini>(collection);

@@ -6,7 +6,6 @@ using System.Net;
 using System.Threading.Tasks;
 using BoxSimpleSync.API.Comparisons;
 using BoxSimpleSync.API.Model;
-using BoxSimpleSync.API.Request;
 using File = BoxSimpleSync.API.Model.File;
 using IOFile = System.IO.File;
 
@@ -16,13 +15,12 @@ namespace BoxSimpleSync.API
     {
         #region Events
 
-        public event Action Authenticating;
         public event Action Deleting;
         public event Action Done;
         public event Action Downloading;
-        public event Action Error;
         public event Action Preparing;
         public event Action Synchronizing;
+        public event Action UnknownError;
         public event Action Uploading;
 
         #endregion
@@ -30,13 +28,19 @@ namespace BoxSimpleSync.API
         #region Fields
 
         private readonly List<Pair<Folder>> foldersPairs = new List<Pair<Folder>>();
-        private Api api;
+        private readonly Api api;
+        private readonly FilesComparison fileWas;
+        private readonly FoldersComparison folderWas;
 
         #endregion
 
         #region Constructors and Destructor
 
-        public Synchronization() {
+        public Synchronization(Api api, FilesComparison fileWas, FoldersComparison folderWas) {
+            this.api = api;
+            this.fileWas = fileWas;
+            this.folderWas = folderWas;
+
             // Hack: Sertificate is not valid on server
             ServicePointManager.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
         }
@@ -47,39 +51,16 @@ namespace BoxSimpleSync.API
 
         public async Task Start(IEnumerable<Pair<string>> paths) {
             try {
-                if (api == null || await UserIsLogOff()) {
-                    Fire(Authenticating);
-                    var authToken = await Authentication.Login("user", "password");
-                    api = new Api(authToken);
-                }
-
-                Fire(Preparing);
-                await BuildFoldersPairs(paths);
-                await BuildFoldersTrees();
-
-                Fire(Synchronizing);
                 var foldersTo = new ProcessResult<Folder>();
                 var filesTo = new ProcessResult<File>();
+
+                await BuildFoldersPairs(paths);
                 await LookupChanges(foldersTo, filesTo);
-
-                Fire(Uploading);
-                await UploadFiles(filesTo);
-
-                Fire(Downloading);
-                await DownloadFiles(filesTo);
-
-                Fire(Deleting);
-                await DeleteFiles(filesTo);
-                await DeleteFolders(foldersTo);
-
+                await Task.WhenAll(UploadFiles(filesTo), DownloadFiles(filesTo), DeleteFiles(filesTo), DeleteFolders(foldersTo));
                 Fire(Done);
             }
-
             catch (Exception e) {
-// ReSharper disable UnusedVariable
-                Fire(Error);
-                var msg = e.Message;
-// ReSharper restore UnusedVariable
+                Fire(UnknownError);
             }
         }
 
@@ -87,32 +68,13 @@ namespace BoxSimpleSync.API
 
         #region Protected And Private Methods
 
-        private async Task<bool> UserIsLogOff() {
-            try {
-                await api.Folders.GetInfo("0");
-                return false;
-            }
-            catch (WebException e) {
-                if (((HttpWebResponse) e.Response).StatusCode == HttpStatusCode.Unauthorized) {
-                    return true;
-                }
-                throw;
-            }
-        }
-
         private static void Fire(Action handler) {
             if (handler != null) {
                 handler();
             }
         }
-
-        private async Task BuildFoldersTrees() {
-            foreach (var foldersPair in foldersPairs) {
-                await BuildFolderTree(foldersPair.Server);
-            }
-        }
-
-        private async Task BuildFolderTree(Folder serverFolder) {
+        
+        private async Task<Folder> BuildFolderTree(Folder serverFolder) {
             var items = new List<Item>();
 
             foreach (var item in serverFolder.Items) {
@@ -126,25 +88,30 @@ namespace BoxSimpleSync.API
             }
 
             serverFolder.Items = items;
+            return serverFolder;
         }
 
         private async Task BuildFoldersPairs(IEnumerable<Pair<string>> paths) {
+            Fire(Preparing);
             foldersPairs.Clear();
 
             foreach (var s in paths) {
                 if (!Directory.Exists(s.Local))
                     Directory.CreateDirectory(s.Local);
-
+                
                 var serverFolder = await api.Folders.GetInfo("0");
-                foreach (var path in s.Server.Split('/')) {
+                
+                foreach (var path in s.Server.Split(new [] {'/'}, StringSplitOptions.RemoveEmptyEntries)) {
                     var id = (from c in serverFolder.Items where c.Name == path select c.Id).SingleOrDefault();
                     serverFolder = await (id != null ? api.Folders.GetInfo(id) : api.Folders.Create(path, serverFolder.Id));
                 }
-                foldersPairs.Add(new Pair<Folder>(serverFolder, s.Local));
+                foldersPairs.Add(new Pair<Folder>(await BuildFolderTree(serverFolder), s.Local));
             }
         }
 
         private async Task LookupChanges(ProcessResult<Folder> foldersTo, ProcessResult<File> filesTo) {
+            Fire(Synchronizing);
+
             foreach (var foldersPair in foldersPairs) {
                 await SyncFolders(foldersPair, foldersTo, filesTo);
             }
@@ -156,7 +123,7 @@ namespace BoxSimpleSync.API
             await ProcessRestOfLocalFolders(foldersTo, filesTo, foldersPair.Server.Id);
         }
 
-        private static void SyncFiles(Pair<Folder> foldersPair, ProcessResult<File> filesTo) {
+        private void SyncFiles(Pair<Folder> foldersPair, ProcessResult<File> filesTo) {
             ProcessServerFiles(foldersPair, filesTo);
             ProcessRestOfLocalFiles(filesTo, foldersPair.Server.Id);
             ResolveConflicts(filesTo, foldersPair.Server.Id);
@@ -168,37 +135,38 @@ namespace BoxSimpleSync.API
             foreach (Folder serverFolder in foldersPair.Server.Items.Where(x => x.Type == "folder")) {
                 var localFolder = foldersPair.Local + "\\" + serverFolder.Name;
                 var pair = new Pair<Folder>(serverFolder, localFolder);
-                var folderWas = new FoldersComparison(pair);
+                folderWas.Items = pair;
 
                 var index = localFolders.IndexOf(localFolder);
-                if (index > -1) {
+                if (index < 0 && folderWas.CreatedOnServer) {
+                    Directory.CreateDirectory(localFolder);
+                    FoldersComparison.Save(localFolder);
+                }
+
+                await SyncFolders(pair, foldersTo, filesTo);
+                
+                if(index < 0 && folderWas.DeletedOnLocal) {
+                    foldersTo.DeleteOnServer.Add(pair);
+                }
+                else if(index > -1) {
                     if (folderWas.PreviousStateIsUnknown) {
                         FoldersComparison.Save(localFolder);
                     }
                     localFolders.RemoveAt(index);
-                } else {
-                    if (folderWas.CreatedOnServer) {
-                        Directory.CreateDirectory(localFolder);
-                        FoldersComparison.Save(localFolder);
-                    } else {
-                        foldersTo.DeleteOnServer.Add(pair);
-                        continue;
-                    }
                 }
-                await SyncFolders(pair, foldersTo, filesTo);
             }
 
             foldersTo.Process.AddRange(localFolders);
         }
 
-        private static void ProcessServerFiles(Pair<Folder> foldersPair, ProcessResult<File> filesTo) {
+        private void ProcessServerFiles(Pair<Folder> foldersPair, ProcessResult<File> filesTo) {
             var localFiles = Directory.GetFiles(foldersPair.Local).ToList();
 
             foreach (File serverFile in foldersPair.Server.Items.Where(x => x.Type == "file")) {
                 var localFile = foldersPair.Local + "\\" + serverFile.Name;
                 var index = localFiles.IndexOf(localFile);
                 var filesPair = new Pair<File>(serverFile, localFile);
-                var fileWas = new FilesComparison(filesPair);
+                fileWas.Items = filesPair;
 
                 if (index > -1) {
                     if (fileWas.PreviousStateIsUnknown) {
@@ -229,9 +197,9 @@ namespace BoxSimpleSync.API
             filesTo.Process.AddRange(localFiles);
         }
 
-        private static void ProcessRestOfLocalFiles(ProcessResult<File> filesTo, string folderId) {
+        private void ProcessRestOfLocalFiles(ProcessResult<File> filesTo, string folderId) {
             foreach (var localFile in filesTo.Process) {
-                var fileWas = new FilesComparison(new Pair<File>(null, localFile));
+                fileWas.Items = new Pair<File>(null, localFile);
 
                 if (fileWas.DeletedOnServer) {
                     IOFile.Delete(localFile);
@@ -249,7 +217,7 @@ namespace BoxSimpleSync.API
             foldersTo.Process = new List<string>();
 
             foreach (var localFolder in foldersToProcess) {
-                var folderWas = new FoldersComparison(new Pair<Folder>(null, localFolder));
+                folderWas.Items = new Pair<Folder>(null, localFolder);
                 if (folderWas.DeletedOnServer) {
                     Directory.Delete(localFolder, true);
                     FoldersComparison.Remove(localFolder);
@@ -277,6 +245,8 @@ namespace BoxSimpleSync.API
         }
 
         private async Task DeleteFiles(ProcessResult<File> filesTo) {
+            Fire(Deleting);
+
             foreach (var file in filesTo.DeleteOnServer) {
                 await api.Files.Delete(file.Server.Id);
                 FilesComparison.Remove(file.Local);
@@ -286,6 +256,8 @@ namespace BoxSimpleSync.API
         }
 
         private async Task DeleteFolders(ProcessResult<Folder> foldersTo) {
+            Fire(Deleting);
+
             foreach (var folder in foldersTo.DeleteOnServer) {
                 await api.Folders.Delete(folder.Server.Id);
                 FoldersComparison.Remove(folder.Local);
@@ -295,6 +267,8 @@ namespace BoxSimpleSync.API
         }
 
         private async Task DownloadFiles(ProcessResult<File> filesTo) {
+            Fire(Downloading);
+            
             foreach (var file in filesTo.Download) {
                 await api.Files.Download(file.Server.Id, file.Local);
                 FilesComparison.Save(file.Local, File.ComputeSha1(file.Local));
@@ -304,6 +278,8 @@ namespace BoxSimpleSync.API
         }
 
         private async Task UploadFiles(ProcessResult<File> filesTo) {
+            Fire(Uploading); 
+
             if (filesTo.Upload.Count < 1)
                 return;
 

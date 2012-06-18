@@ -5,12 +5,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using BoxSimpleSync.API.Helpers;
+using BoxSimpleSync.API.Interfaces;
 using File = BoxSimpleSync.API.Model.File;
 using IOFile = System.IO.File;
 
 namespace BoxSimpleSync.API.Request
 {
-    public sealed class Files
+    public sealed class Files : IFiles
     {
         #region Static Fields and Constants
 
@@ -23,17 +24,21 @@ namespace BoxSimpleSync.API.Request
 
         #region Fields
 
-        private readonly string authToken;
         private readonly string boundary;
 
         #endregion
 
         #region Constructors and Destructor
 
-        public Files(string authToken) {
-            this.authToken = authToken;
+        public Files() {
             boundary = Guid.NewGuid().ToString().Replace("-", string.Empty);
         }
+
+        #endregion
+
+        #region Public and Internal Properties and Indexers
+
+        public string AuthToken { get; set; }
 
         #endregion
 
@@ -45,22 +50,22 @@ namespace BoxSimpleSync.API.Request
             var folderIdBlock = AssembleString("folder_id", folderId);
 
             foreach (var filesBlock in await AssembleFilesBlock(filePaths, folderIdBlock.Merge(stopBoundary))) {
-                result.AddRange(JsonParse.FilesList(await HttpRequest.UploadFiles(UploadUrl, boundary, filesBlock, authToken)));
+                result.AddRange(JsonParse.FilesList(await HttpRequest.UploadFiles(UploadUrl, boundary, filesBlock, AuthToken)));
             }
 
             return result;
         }
 
         public async Task Download(string fileId, string location) {
-            await HttpRequest.DownloadFile(string.Format(DownloadUrl, fileId), location, authToken);
+            await HttpRequest.DownloadFile(string.Format(DownloadUrl, fileId), location, AuthToken);
         }
 
         public async Task<File> GetInfo(string id) {
-            return JsonParse.File(await HttpRequest.Get(string.Format(FileUrl, id), authToken));
+            return JsonParse.File(await HttpRequest.Get(string.Format(FileUrl, id), AuthToken));
         }
 
         public Task Delete(string id) {
-            return HttpRequest.Delete(string.Format(FileUrl, id), authToken);
+            return HttpRequest.Delete(string.Format(FileUrl, id), AuthToken);
         }
 
         #endregion

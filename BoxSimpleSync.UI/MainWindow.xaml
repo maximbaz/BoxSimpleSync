@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MainWindow" Height="350" Width="525">
     <Grid>
-        <Label Name="Status" Content="Not synchronized yet." HorizontalContentAlignment="Center" Margin="10,100,0,0" VerticalAlignment="Top" Height="58" Width="499" Background="White" Foreground="#FF31B400" FontFamily="SketchFlow Print" FontSize="36"/>
-        <Button Content="Synchronize now!" HorizontalAlignment="Left" Margin="179,214,0,0" VerticalAlignment="Top" Width="142" Height="36" Click="SynchronizeNowClick"/>
+        <ListBox Name="Log" HorizontalAlignment="Left" Height="251" Margin="73,10,0,0" VerticalAlignment="Top" Width="370"/>
+        <Button Content="Synchronize now!" HorizontalAlignment="Left" Margin="179,266,0,0" VerticalAlignment="Top" Width="142" Height="36" Click="SynchronizeNowClick"/>
     </Grid>
 </Window>

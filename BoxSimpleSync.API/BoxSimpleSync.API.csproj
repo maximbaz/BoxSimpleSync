@@ -60,6 +60,7 @@
   <ItemGroup>
     <Compile Include="Api.cs" />
     <Compile Include="Comparisons\ItemsComparison.cs" />
+    <Compile Include="Exceptions\AuthenticationException.cs" />
     <Compile Include="Helpers\Db.cs" />
     <Compile Include="Comparisons\FilesComparison.cs" />
     <Compile Include="Comparisons\FoldersComparison.cs" />
@@ -76,6 +77,8 @@
     <Compile Include="Model\Item.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Helpers\JsonParse.cs" />
+    <Compile Include="Interfaces\IFiles.cs" />
+    <Compile Include="Interfaces\IFolders.cs" />
     <Compile Include="Synchronization.cs" />
   </ItemGroup>
   <ItemGroup>

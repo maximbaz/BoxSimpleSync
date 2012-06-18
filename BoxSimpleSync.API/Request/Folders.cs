@@ -1,10 +1,11 @@
 using System.Threading.Tasks;
 using BoxSimpleSync.API.Helpers;
+using BoxSimpleSync.API.Interfaces;
 using BoxSimpleSync.API.Model;
 
 namespace BoxSimpleSync.API.Request
 {
-    public sealed class Folders
+    public sealed class Folders : IFolders
     {
         #region Static Fields and Constants
 
@@ -12,32 +13,24 @@ namespace BoxSimpleSync.API.Request
 
         #endregion
 
-        #region Fields
+        #region Public and Internal Properties and Indexers
 
-        private readonly string authToken;
-
-        #endregion
-
-        #region Constructors and Destructor
-
-        public Folders(string authToken) {
-            this.authToken = authToken;
-        }
+        public string AuthToken { get; set; }
 
         #endregion
 
         #region Public and Internal Methods
 
         public async Task<Folder> GetInfo(string id) {
-            return JsonParse.Folder(await HttpRequest.Get(string.Format(Url, id), authToken));
+            return JsonParse.Folder(await HttpRequest.Get(string.Format(Url, id), AuthToken));
         }
 
-        public async Task<Folder> Create(string name, string parent) {
-            return JsonParse.Folder(await HttpRequest.Post(string.Format(Url, parent), string.Format("{{\"name\":\"{0}\"}}", name), authToken));
+        public async Task<Folder> Create(string name, string parentId) {
+            return JsonParse.Folder(await HttpRequest.Post(string.Format(Url, parentId), string.Format("{{\"name\":\"{0}\"}}", name), AuthToken));
         }
 
         public Task Delete(string id) {
-            return HttpRequest.Delete(string.Format(Url, id), authToken);
+            return HttpRequest.Delete(string.Format(Url, id), AuthToken);
         }
 
         #endregion

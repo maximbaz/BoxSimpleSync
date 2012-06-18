@@ -7,13 +7,13 @@ namespace BoxSimpleSync.API.Comparisons
     {
         #region Static Fields and Constants
 
-        private const string Collection = "files";
+        protected static string Collection = "files";
 
         #endregion
 
         #region Constructors and Destructor
 
-        public FilesComparison(Pair<File> files) : base(files, Collection) {}
+        public FilesComparison() : base(Collection) {}
 
         #endregion
 
@@ -29,6 +29,18 @@ namespace BoxSimpleSync.API.Comparisons
 
         public bool UpdatedOnServer {
             get { return !ServerIdenticalToDb && LocalIdenticalToDb; }
+        }
+
+        public bool PreviousStateIsUnknown {
+            get { return PreviousStateIsUnknown<MiniFile>(); }
+        }
+
+        public bool CreatedOnServer {
+            get { return CreatedOnServer<MiniFile>(); }
+        }
+
+        public bool DeletedOnServer {
+            get { return DeletedOnServer<MiniFile>(); }
         }
 
         public bool DeletedOnLocal {

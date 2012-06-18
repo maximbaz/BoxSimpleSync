@@ -6,13 +6,33 @@ namespace BoxSimpleSync.API.Comparisons
     {
         #region Static Fields and Constants
 
-        private const string Collection = "folders";
+        protected const string Collection = "folders";
 
         #endregion
 
         #region Constructors and Destructor
 
-        public FoldersComparison(Pair<Folder> items) : base(items, Collection) {}
+        public FoldersComparison() : base(Collection) {}
+
+        #endregion
+
+        #region Public and Internal Properties and Indexers
+
+        public bool DeletedOnLocal {
+            get { return !CreatedOnServer; }
+        }
+
+        public bool CreatedOnServer {
+            get { return CreatedOnServer<MiniItem>(); }
+        }
+
+        public bool DeletedOnServer {
+            get { return DeletedOnServer<MiniItem>(); }
+        }
+
+        public bool PreviousStateIsUnknown {
+            get { return PreviousStateIsUnknown<MiniItem>(); }
+        }
 
         #endregion
 

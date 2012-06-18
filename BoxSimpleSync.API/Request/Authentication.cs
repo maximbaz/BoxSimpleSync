@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using System.Web;
 using System.Xml;
+using BoxSimpleSync.API.Exceptions;
 using HttpRequest = BoxSimpleSync.API.Helpers.HttpRequest;
 
 namespace BoxSimpleSync.API.Request
@@ -32,7 +33,13 @@ namespace BoxSimpleSync.API.Request
         private static void RetrieveTicket(string response) {
             var xml = new XmlDocument();
             xml.LoadXml(response);
-            ticket = xml.DocumentElement.SelectSingleNode("ticket").InnerText;
+            var document = xml.DocumentElement;
+            XmlNode node;
+            if (document != null && (node = document.SelectSingleNode("ticket")) != null) {
+                ticket = node.InnerText;
+            } else {
+                throw new AuthenticationException("ticket");
+            }
         }
 
         private static Task SendAuthenticationData(string email, string password) {
@@ -46,7 +53,12 @@ namespace BoxSimpleSync.API.Request
             var response = await HttpRequest.Get(Rest + "get_auth_token&ticket=" + ticket, null);
             var xml = new XmlDocument();
             xml.LoadXml(response);
-            return xml.DocumentElement.SelectSingleNode("auth_token").InnerText;
+            var document = xml.DocumentElement;
+            XmlNode node; 
+            if (document != null && (node = document.SelectSingleNode("auth_token")) != null) {
+                return node.InnerText;
+            }
+            throw new AuthenticationException("token");
         }
 
         #endregion
