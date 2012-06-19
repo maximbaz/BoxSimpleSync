@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using BoxSimpleSync.API.Interfaces;
+using BoxSimpleSync.API.Model;
 using BoxSimpleSync.Tests.Helpers;
 using File = BoxSimpleSync.API.Model.File;
 using IOFile = System.IO.File;
@@ -52,7 +54,7 @@ namespace BoxSimpleSync.Tests.Request
                     }
 
                     map.Folders[folderId].Items.Add(file);
-                    IOFile.Copy(path, file.FullPath);
+                    IOFile.Copy(path, file.FullPath, true);
                 }
 
                 return files;
@@ -60,7 +62,7 @@ namespace BoxSimpleSync.Tests.Request
         }
 
         public Task Download(string fileId, string location) {
-            return Task.Run(() => IOFile.Copy(map.Files[fileId].FullPath, location));
+            return Task.Run(() => IOFile.Copy(map.Files[fileId].FullPath, location, true));
         }
 
         public Task<File> GetInfo(string id) {
@@ -70,8 +72,13 @@ namespace BoxSimpleSync.Tests.Request
         public Task Delete(string id) {
             return Task.Run(() => {
                 IOFile.Delete(map.Files[id].FullPath);
+                FindAndRemove(map.Folders["0"].Items, map.Files[id]);
                 map.Files.Remove(id);
             });
+        }
+
+        private static bool FindAndRemove(ICollection<Item> items, Item itemToRemove) {
+            return !items.Remove(itemToRemove) && items.Where(f => f is Folder).Cast<Folder>().Any(item => FindAndRemove(item.Items, itemToRemove));
         }
 
         #endregion

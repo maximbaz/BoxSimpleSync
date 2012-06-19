@@ -54,8 +54,6 @@
   </Choose>
   <ItemGroup>
     <Compile Include="Helpers\TestFolder.cs" />
-    <Compile Include="Helpers\FilesComparisonTest.cs" />
-    <Compile Include="Helpers\FoldersComparisonTest.cs" />
     <Compile Include="Request\FoldersFake.cs" />
     <Compile Include="Request\FilesFake.cs" />
     <Compile Include="Helpers\ServerMap.cs" />

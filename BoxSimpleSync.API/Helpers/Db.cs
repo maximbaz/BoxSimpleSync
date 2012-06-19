@@ -24,6 +24,10 @@ namespace BoxSimpleSync.API.Helpers
             MongoDb.GetCollection(collection).Remove(Query.EQ(name, value));
         }
 
+        public static void Clear(string collection) {
+            MongoDb.DropCollection(collection);
+        }
+
         #endregion
 
         #region Protected and Private Properties and Indexers

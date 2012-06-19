@@ -5,15 +5,9 @@ namespace BoxSimpleSync.API.Comparisons
 {
     public class FilesComparison : ItemsComparison<File>
     {
-        #region Static Fields and Constants
-
-        protected static string Collection = "files";
-
-        #endregion
-
         #region Constructors and Destructor
 
-        public FilesComparison() : base(Collection) {}
+        public FilesComparison(string collection = "files") : base(collection) {}
 
         #endregion
 

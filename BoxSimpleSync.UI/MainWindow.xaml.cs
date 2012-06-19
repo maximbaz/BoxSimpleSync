@@ -4,6 +4,7 @@ using System.Net;
 using System.Threading.Tasks;
 using System.Windows;
 using BoxSimpleSync.API;
+using BoxSimpleSync.API.Comparisons;
 using BoxSimpleSync.API.Exceptions;
 using BoxSimpleSync.API.Model;
 using BoxSimpleSync.API.Request;
@@ -56,7 +57,7 @@ namespace BoxSimpleSync.UI
         private async Task<Synchronization> CreateSynchronization() {
             api = new Api(await GenerateAuthToken, new Files(), new Folders());
 
-            var sync = new Synchronization(api);
+            var sync = new Synchronization(api, new FilesComparison(), new FoldersComparison());
             sync.Preparing += () => LogEvent("Preparing");
             sync.Synchronizing += () => LogEvent("Synchronizing");
             sync.Downloading += () => LogEvent("Downloading");

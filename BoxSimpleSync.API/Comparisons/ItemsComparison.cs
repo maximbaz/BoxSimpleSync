@@ -6,16 +6,10 @@ namespace BoxSimpleSync.API.Comparisons
 {
     public abstract class ItemsComparison<T> where T : Item
     {
-        #region Fields
-
-        private readonly string collection;
-
-        #endregion
-
         #region Constructors and Destructor
 
         protected ItemsComparison(string collection) {
-            this.collection = collection;
+            Collection = collection;
         }
 
         #endregion
@@ -42,6 +36,12 @@ namespace BoxSimpleSync.API.Comparisons
 
         #endregion
 
+        #region Protected and Private Properties and Indexers
+
+        protected static string Collection { get; private set; }
+
+        #endregion
+
         #region Protected And Private Methods
 
         protected bool ExistsInDb<TMini>() where TMini : MiniItem {
@@ -49,7 +49,7 @@ namespace BoxSimpleSync.API.Comparisons
         }
 
         protected virtual IQueryable<TMini> Query<TMini>() where TMini : MiniItem {
-            return QueryTo<TMini>(collection);
+            return QueryTo<TMini>(Collection);
         }
 
         protected static void Remove(string item, string collection) {
