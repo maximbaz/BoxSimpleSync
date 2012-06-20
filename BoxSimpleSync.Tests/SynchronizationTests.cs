@@ -74,7 +74,7 @@ namespace BoxSimpleSync.Tests
 
             await sync.Start(paths);
 
-            AssertFoldersAreSame(Server, Local);
+            AssertFoldersAreSame(Server, Local, 0);
         }
 
         [TestMethod]
@@ -106,14 +106,14 @@ namespace BoxSimpleSync.Tests
             AssertFoldersAreSame(Server, Local, FilesList.Count);
 
             // delete files on local
-            const int foldersToDelete = 2;
-            for (var i = 0; i < foldersToDelete; i++) {
+            const int filesToDelete = 2;
+            for (var i = 0; i < filesToDelete; i++) {
                 IOFile.Delete(Local + "\\" + FilesList[i]);
             }
 
             await sync.Start(paths);
 
-            AssertFoldersAreSame(Server, Local, FilesList.Count - foldersToDelete);
+            AssertFoldersAreSame(Server, Local, FilesList.Count - filesToDelete);
         }
 
         [TestMethod]
@@ -125,15 +125,15 @@ namespace BoxSimpleSync.Tests
             AssertFoldersAreSame(Server, Local, FilesList.Count);
 
             // delete files on server
-            const int foldersToDelete = 2;
-            for (var i = 0; i < foldersToDelete; i++) {
+            const int filesToDelete = 2;
+            for (var i = 0; i < filesToDelete; i++) {
                 var fileToRemove = (from f in map.Files where f.Value.Name == Path.GetFileName(FilesList[i]) select f.Key).Single();
                 await api.Files.Delete(fileToRemove);
             }
 
             await sync.Start(paths);
 
-            AssertFoldersAreSame(Server, Local, FilesList.Count - foldersToDelete);
+            AssertFoldersAreSame(Server, Local, FilesList.Count - filesToDelete);
         }
 
         [TestMethod]
@@ -171,7 +171,7 @@ namespace BoxSimpleSync.Tests
         }
 
         [TestMethod]
-        public async void Resolve_Conflicts_If_Local_And_Server_Have_Changes() {
+        public async void Resolve_Basic_File_Conflicts_If_Local_And_Server_Have_Changes() {
             // upload some files to server
             var sync = Init();
             CreateLocalFiles(FilesList);
@@ -191,38 +191,6 @@ namespace BoxSimpleSync.Tests
             AssertFoldersAreSame(Server, Local, FilesList.Count * 2);
         }
 
-        [TestMethod]
-        public async void Can_Sync_When_All_Sync_Situations_Appeared_In_One_Time() {
-            // upload some files to server
-            var sync = Init();
-            CreateLocalFiles(FilesList);
-            await sync.Start(paths);
-            AssertFoldersAreSame(Server, Local, FilesList.Count);
-
-            // add new files on local, one will conflict with new file on server
-            CreateLocalFiles(new List<string> {"file7.txt", "file8.jpeg"});
-
-            // add new files on server
-            CreateServerFiles(new List<string> {"file7.txt", "file9.doc"});
-
-            // rewrite files on local, some also will be rewritten on server
-            const int filesToRewrite = 4;
-            CreateLocalFiles(FilesList.Take(filesToRewrite));
-
-            // rewrite files on server
-            for (var i = 0; i < filesToRewrite; i++) {
-                await api.Files.Delete((from f in map.Files where f.Value.Name == FilesList[i] select f.Key).Single());
-            }
-
-            CreateServerFiles(from f in FilesList.Skip(filesToRewrite / 2).Take(filesToRewrite) select f.Replace(Local, Server));
-
-            // delete file on server
-
-            await sync.Start(paths);
-
-            AssertFoldersAreSame(Server, Local, FilesList.Count + 4 + filesToRewrite / 2);
-        }
-
         #endregion
 
         #region Folders API
@@ -235,7 +203,207 @@ namespace BoxSimpleSync.Tests
 
             await sync.Start(paths);
 
-            AssertFoldersAreSame(Server, Local);
+            AssertFoldersAreSame(Server, Local, 0);
+        }
+
+        [TestMethod]
+        public async void Can_Upload_New_Files_In_Folders()
+        {
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+        }
+
+        [TestMethod]
+        public async void Can_Download_New_Files_In_Folders()
+        {
+            var sync = Init();
+            CreateServerFiles(FilesInFoldersList);
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, 6);
+        }
+
+        [TestMethod]
+        public async void Can_Delete_Files_In_Folders_On_Server()
+        {
+            // upload some files to server and sync
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+            await sync.Start(paths);
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+
+            // delete files on local
+            const int filesToDelete = 4;
+            for (var i = 0; i < filesToDelete; i++)
+            {
+                IOFile.Delete(Local + "\\" + FilesInFoldersList[i]);
+            }
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count, FilesList.Count - filesToDelete, FilesList.Count);
+        }
+
+        [TestMethod]
+        public async void Can_Delete_Whole_Folders_On_Server()
+        {
+            // upload some files to server and sync
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+            await sync.Start(paths);
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+
+            // delete folders on local
+            const int foldersToDelete = 4;
+            for (var i = 1; i < foldersToDelete; i++) {
+                Directory.Delete(Local + "\\" + FoldersList[i], true);
+            }
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+        }
+
+        [TestMethod]
+        public async void Can_Delete_Files_In_Folders_On_Local()
+        {
+            // upload some files to server and sync
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+            await sync.Start(paths);
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+
+            // delete files on server
+            const int filesToDelete = 4;
+            for (var i = 0; i < filesToDelete; i++)
+            {
+                var fileToRemove = (from f in map.Files where f.Value.FullPath == Server + "\\" + FilesInFoldersList[i] select f.Key).Single();
+                await api.Files.Delete(fileToRemove);
+            }
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count, FilesList.Count - filesToDelete, FilesList.Count);
+        }
+
+        [TestMethod]
+        public async void Can_Delete_Whole_Folders_On_Local()
+        {
+            // upload some files to server and sync
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+            await sync.Start(paths);
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+
+            // delete folders on server
+            const int foldersToDelete = 4;
+            for (var i = 1; i < foldersToDelete; i++)
+            {
+                var folderToDelete = (from f in map.Folders where f.Value.FullPath == Server + "\\" + FoldersList[i] select f.Key).Single();
+                await api.Folders.Delete(folderToDelete);
+            }
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+        }
+
+        [TestMethod]
+        public async void Upload_New_Files_In_Folders_If_Only_Local_Has_Changes()
+        {
+            // upload some files to server
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+            await sync.Start(paths);
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+
+            // rewrite files on local
+            CreateLocalFiles(FilesInFoldersList);
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+        }
+
+        [TestMethod]
+        public async void Download_New_Files_In_Folders_If_Only_Server_Has_Changes()
+        {
+            // upload some files to server
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+            await sync.Start(paths);
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+
+            // rewrite files on server
+            map.Files.Clear();
+            map.Folders.Clear();
+            map.Folders.Add("0", new TestFolder
+            {
+                FullPath = Server,
+                Id = "0",
+                Items = new List<Item>(),
+                Name = "All files"
+            });
+            
+            CreateServerFiles(FilesInFoldersList);
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+        }
+
+        [TestMethod]
+        public async void Resolve_Basic_File_Conflicts_In_Folders_If_Local_And_Server_Have_Changes()
+        {
+            // upload some files to server
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+            await sync.Start(paths);
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+
+            // rewrite files on local
+            CreateLocalFiles(FilesInFoldersList);
+
+            // rewrite files on server
+            map.Files.Clear();
+            map.Folders.Clear();
+            map.Folders.Add("0", new TestFolder
+            {
+                FullPath = Server,
+                Id = "0",
+                Items = new List<Item>(),
+                Name = "All files"
+            });
+            CreateServerFiles(FilesInFoldersList);
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count * 2);
+        }
+
+        [TestMethod]
+        public async void Resolve_Local_Folder_Changes_Server_Folder_Was_Deleted()
+        {
+            // upload some files to server
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+            await sync.Start(paths);
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+
+            // add new file on local
+            CreateLocalFiles(new List<string> { "folder1\\folder3\\folder4\\file7.new" });
+
+            // delete folder on server
+            await api.Folders.Delete((from d in map.Folders where d.Value.Name == "folder4" select d).Single().Key);
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count, FilesList.Count, FilesList.Count, FilesList.Count, 1, FilesList.Count);
         }
 
         #endregion
@@ -247,7 +415,11 @@ namespace BoxSimpleSync.Tests
         }
 
         private static List<string> FoldersList {
-            get { return new List<string> {"folder1", "folder5", "folder1\\folder2", "folder1\\folder3", "folder1\\folder3\\folder4"}; }
+            get { return new List<string> { "folder1", "folder5", "folder1\\folder2", "folder1\\folder3", "folder1\\folder3\\folder4", "" }; }
+        }
+
+        private static List<string> FilesInFoldersList {
+            get { return (from d in FoldersList from f in FilesList select d + "\\" + f).ToList(); }
         }
 
         #endregion
@@ -258,10 +430,17 @@ namespace BoxSimpleSync.Tests
             CreateFiles(from f in files select Local + "\\" + f);
         }
 
-        private void CreateServerFiles(IEnumerable<string> files) {
-            foreach (var file in CreateFiles(from f in files select Server + "\\" + f)) {
+        private void CreateServerFiles(List<string> files) {
+            var folders = (from f in files where !f.StartsWith("\\") select Path.GetDirectoryName(f)).Distinct();
+            CreateServerFolders(from f in folders where !string.IsNullOrEmpty(f) select f);
+
+            foreach (var file in CreateFiles(from f in files select Server + "\\" + f.TrimStart('\\'))) {
                 map.Files.Add(file.Id, file);
-                map.Folders["0"].Items.Add(file);
+                var parent = (from d in map.Folders
+                              where d.Value.FullPath == Path.GetDirectoryName(file.FullPath)
+                              select d.Value).SingleOrDefault() 
+                              ?? map.Folders["0"];
+                parent.Items.Add(file);
             }
         }
 
@@ -270,6 +449,7 @@ namespace BoxSimpleSync.Tests
             var random = new Random();
 
             foreach (var file in files) {
+                new FileInfo(file).Directory.Create();
                 using (var stream = IOFile.CreateText(file)) {
                     for (int i = 0, l = random.Next(1, 100); i < l; i++) {
                         stream.Write(Guid.NewGuid().ToString());
@@ -311,7 +491,7 @@ namespace BoxSimpleSync.Tests
                     Id = Guid.NewGuid().ToString(),
                     Name = Path.GetFileName(folder),
                     Items = new List<Item>(),
-                    FullPath = folder
+                    FullPath = folder.TrimEnd('\\')
                 });
             }
 
@@ -323,11 +503,11 @@ namespace BoxSimpleSync.Tests
             return new Synchronization(api, new FilesComparison(TestFilesCollection), new FoldersComparison(TestFoldersCollection));
         }
 
-        private static void AssertFoldersAreSame(string first, string second, params int[] exceptedFilesCount) {
+        private static int[] AssertFoldersAreSame(string first, string second, params int[] expectedFilesCount) {
             var filesInFirst = Directory.GetFiles(first);
             var filesInSecond = Directory.GetFiles(second);
             Assert.AreEqual(filesInFirst.Length, filesInSecond.Length);
-            Assert.AreEqual(filesInFirst.Length, exceptedFilesCount.Length > 0 ? exceptedFilesCount[0] : 0);
+            Assert.AreEqual(filesInFirst.Length, expectedFilesCount[0]);
 
             var fileNamesInFirst = filesInFirst.Select(Path.GetFileName).ToList();
             var fileNamesInSecond = filesInSecond.Select(Path.GetFileName).ToList();
@@ -341,10 +521,14 @@ namespace BoxSimpleSync.Tests
             var foldersInSecond = Directory.GetDirectories(second).Select(Path.GetFileName).ToList();
             Assert.AreEqual(foldersInFirst.Count, foldersInSecond.Count);
 
+            expectedFilesCount = expectedFilesCount.Length > 1 ? expectedFilesCount.Skip(1).ToArray() : expectedFilesCount;
+
             foreach (var folder in foldersInFirst) {
                 Assert.IsTrue(foldersInSecond.Contains(folder));
-                AssertFoldersAreSame(Path.Combine(first, folder), Path.Combine(second, folder), exceptedFilesCount.Skip(1).ToArray());
+                expectedFilesCount = AssertFoldersAreSame(Path.Combine(first, folder), Path.Combine(second, folder), expectedFilesCount);
             }
+
+            return expectedFilesCount;
         }
 
         #endregion

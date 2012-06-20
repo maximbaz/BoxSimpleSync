@@ -138,22 +138,23 @@ namespace BoxSimpleSync.API
                 folderWas.Items = pair;
 
                 var index = localFolders.IndexOf(localFolder);
-                if (index < 0 && folderWas.CreatedOnServer) {
-                    Directory.CreateDirectory(localFolder);
-                    FoldersComparison.Save(localFolder);
-                }
 
-                await SyncFolders(pair, foldersTo, filesTo);
-                
-                if(index < 0 && folderWas.DeletedOnLocal) {
-                    foldersTo.DeleteOnServer.Add(pair);
-                }
-                else if(index > -1) {
+                if (index > -1) {
                     if (folderWas.PreviousStateIsUnknown) {
                         FoldersComparison.Save(localFolder);
                     }
                     localFolders.RemoveAt(index);
+                } else {
+                    if (folderWas.CreatedOnServer) {
+                        Directory.CreateDirectory(localFolder);
+                        FoldersComparison.Save(localFolder);
+                    } else if (folderWas.DeletedOnLocal) {
+                        foldersTo.DeleteOnServer.Add(pair);
+                        continue;
+                    }
                 }
+
+                await SyncFolders(pair, foldersTo, filesTo);
             }
 
             foldersTo.Process.AddRange(localFolders);

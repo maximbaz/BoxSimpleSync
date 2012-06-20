@@ -58,18 +58,24 @@ namespace BoxSimpleSync.Tests.Request
             return Task.Run(() => {
                 var folderPath = map.Folders[id].FullPath;
 
-                foreach (var file in from f in map.Files
-                                     where f.Value.Name.Contains(folderPath)
-                                     select f.Key) {
-                    map.Files.Remove(file);
-                }
+                (from f in map.Files
+                 where f.Value.FullPath.Contains(folderPath)
+                 select f.Key).ToList().ForEach(k => map.Files.Remove(k));
 
-                foreach (var file in from f in map.Folders
-                                     where f.Value.FullPath.Contains(folderPath)
-                                     select f.Key) {
-                    map.Folders.Remove(file);
-                }
+                (from f in map.Folders
+                 where f.Value.FullPath.Contains(folderPath)
+                 select f.Value).ToList().ForEach(k => {
+                     var parent = (from d in map.Folders
+                                   where d.Value.Items.Contains(k)
+                                   select d.Value).SingleOrDefault();
 
+                     if(parent != null) {
+                         parent.Items.Remove(k);
+                     }
+
+                     map.Folders.Remove(k.Id);
+                 });
+                
                 Directory.Delete(folderPath, true);
             });
         }
