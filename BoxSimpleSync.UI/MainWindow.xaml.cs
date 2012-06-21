@@ -41,7 +41,7 @@ namespace BoxSimpleSync.UI
                     api.RefreshAuthToken(await GenerateAuthToken);
                 }
 
-                synchronization.Start(paths);
+                await synchronization.Start(paths);
             }
             catch (AuthenticationException) {
                 LogEvent("Authentication FAILED");
