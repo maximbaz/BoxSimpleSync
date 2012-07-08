@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace BoxSimpleSync.API.Helpers
@@ -16,7 +17,7 @@ namespace BoxSimpleSync.API.Helpers
         #region Public and Internal Methods
 
         public static Task<string> Get(string url, string authToken) {
-            var client = new WebClient();
+            var client = new WebClient { Encoding = Encoding.UTF8 };
             if (authToken == null)
                 return client.DownloadStringTaskAsync(new Uri(url + "&api_key=" + ApiKey));
             client.Headers.Add(AuthHeader(authToken));
@@ -24,14 +25,14 @@ namespace BoxSimpleSync.API.Helpers
         }
 
         public static Task<string> Post(string url, string data, string authToken) {
-            var client = new WebClient();
+            var client = new WebClient { Encoding = Encoding.UTF8 };
             client.Headers.Add("Content-Type:application/x-www-form-urlencoded");
             client.Headers.Add(authToken != null ? AuthHeader(authToken) : "Host:www.box.net");
             return client.UploadStringTaskAsync(new Uri(url), "POST", data);
         }
 
         public static Task DownloadFile(string url, string location, string authToken) {
-            var client = new WebClient();
+            var client = new WebClient { Encoding = Encoding.UTF8 };
             client.Headers.Add(AuthHeader(authToken));
             return client.DownloadFileTaskAsync(new Uri(url), location);
         }
@@ -78,7 +79,7 @@ namespace BoxSimpleSync.API.Helpers
             webRequest.AllowWriteStreamBuffering = true;
             webRequest.ContentType = string.Concat("multipart/form-data;boundary=", boundary);
             webRequest.Headers.Add("Accept-Encoding", "gzip,deflate");
-            webRequest.Headers.Add("Accept-Charset", "ISO-8859-1");
+            webRequest.Headers.Add("Accept-Charset", "UTF-8");
             webRequest.Headers.Add(AuthHeader(authToken));
             webRequest.ContentLength = contentLength;
 

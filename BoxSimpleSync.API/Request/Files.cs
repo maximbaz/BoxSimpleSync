@@ -80,17 +80,17 @@ namespace BoxSimpleSync.API.Request
                                             Guid.NewGuid(),
                                             Path.GetFileName(filePath),
                                             Environment.NewLine);
-                buffer = Encoding.ASCII.GetBytes(content);
+                buffer = Encoding.UTF8.GetBytes(content);
                 await resultStream.WriteAsync(buffer, 0, buffer.Length);
 
                 content = "Content-Type: application/octet-stream" + Environment.NewLine + Environment.NewLine;
-                buffer = Encoding.ASCII.GetBytes(content);
+                buffer = Encoding.UTF8.GetBytes(content);
                 await resultStream.WriteAsync(buffer, 0, buffer.Length);
 
                 buffer = IOFile.ReadAllBytes(filePath);
                 await resultStream.WriteAsync(buffer, 0, buffer.Length);
 
-                buffer = Encoding.ASCII.GetBytes(Environment.NewLine);
+                buffer = Encoding.UTF8.GetBytes(Environment.NewLine);
                 await resultStream.WriteAsync(buffer, 0, buffer.Length);
 
                 await resultStream.FlushAsync();
@@ -107,7 +107,7 @@ namespace BoxSimpleSync.API.Request
 
             var formattedBoundary = GetFormattedBoundary(false);
             var needSize = (from f in filePaths select new FileInfo(f).Length).Sum() +
-                           (from f in filePaths select Path.GetFileName(f).Length).Sum() +
+                           (from f in filePaths select Encoding.UTF8.GetByteCount(Path.GetFileName(f))).Sum() +
                            (formattedBoundary.Length + assembleFileExtraBytes) * filePaths.Count +
                            additionalData.Length;
             var memoryStream = new MemoryStream((int) Math.Min(needSize, int.MaxValue));
@@ -151,7 +151,7 @@ namespace BoxSimpleSync.API.Request
             builder.AppendLine();
             builder.AppendLine(value);
 
-            var assembledString = Encoding.ASCII.GetBytes(builder.ToString());
+            var assembledString = Encoding.UTF8.GetBytes(builder.ToString());
             var formattedBoundary = GetFormattedBoundary(false);
 
             return formattedBoundary.Merge(assembledString);
@@ -159,7 +159,7 @@ namespace BoxSimpleSync.API.Request
 
         private byte[] GetFormattedBoundary(bool isEndBoundary) {
             var template = isEndBoundary ? "--{0}--{1}" : "--{0}{1}";
-            return Encoding.ASCII.GetBytes(string.Format(template, boundary, Environment.NewLine));
+            return Encoding.UTF8.GetBytes(string.Format(template, boundary, Environment.NewLine));
         }
 
         #endregion
