@@ -8,6 +8,7 @@ namespace BoxSimpleSync.API.Model
 
         public Folder() {
             Type = "folder";
+            Items = new List<Item>();
         }
 
         #endregion

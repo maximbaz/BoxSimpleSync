@@ -406,6 +406,28 @@ namespace BoxSimpleSync.Tests
             AssertFoldersAreSame(Server, Local, FilesList.Count, FilesList.Count, FilesList.Count, FilesList.Count, 1, FilesList.Count);
         }
 
+        [TestMethod]
+        public async void Resolve_Server_Folder_Changes_Local_Folder_Was_Deleted()
+        {
+            // upload some files to server
+            var sync = Init();
+            CreateLocalFiles(FilesInFoldersList);
+            await sync.Start(paths);
+            AssertFoldersAreSame(Server, Local, FilesList.Count);
+
+            var folder = FoldersList[4];
+
+            // add new file on server
+            CreateServerFiles(new List<string> { folder + "\\file7.new" }, false);
+
+            // delete folder on local
+            Directory.Delete(Local + "\\" + folder, true);
+
+            await sync.Start(paths);
+
+            AssertFoldersAreSame(Server, Local, FilesList.Count, FilesList.Count, FilesList.Count, FilesList.Count, 1, FilesList.Count);
+        }
+
         #endregion
 
         #region Protected and Private Properties and Indexers
@@ -430,9 +452,10 @@ namespace BoxSimpleSync.Tests
             CreateFiles(from f in files select Local + "\\" + f);
         }
 
-        private void CreateServerFiles(List<string> files) {
-            var folders = (from f in files where !f.StartsWith("\\") select Path.GetDirectoryName(f)).Distinct();
-            CreateServerFolders(from f in folders where !string.IsNullOrEmpty(f) select f);
+        private void CreateServerFiles(List<string> files, bool createServerFolders = true) {
+            if(createServerFolders) {
+                CreateServerFolders(files);
+            }
 
             foreach (var file in CreateFiles(from f in files select Server + "\\" + f.TrimStart('\\'))) {
                 map.Files.Add(file.Id, file);
@@ -449,7 +472,7 @@ namespace BoxSimpleSync.Tests
             var random = new Random();
 
             foreach (var file in files) {
-                new FileInfo(file).Directory.Create();
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
                 using (var stream = IOFile.CreateText(file)) {
                     for (int i = 0, l = random.Next(1, 100); i < l; i++) {
                         stream.Write(Guid.NewGuid().ToString());
@@ -471,8 +494,9 @@ namespace BoxSimpleSync.Tests
             CreateFolders(from f in folders select Local + "\\" + f);
         }
 
-        private void CreateServerFolders(IEnumerable<string> folders)
+        private void CreateServerFolders(IEnumerable<string> files)
         {
+            var folders = from d in (from f in files where !f.StartsWith("\\") select Path.GetDirectoryName(f)).Distinct() where !string.IsNullOrEmpty(d) select d;
             foreach (var folder in CreateFolders(from f in folders select Server + "\\" + f)) {
                 var parent = (from f in map.Folders where f.Value.FullPath == Path.GetDirectoryName(folder.FullPath) select f).Single();
                 map.Folders.Add(folder.Id, folder);
@@ -480,14 +504,12 @@ namespace BoxSimpleSync.Tests
             }
         }
 
-        private static List<TestFolder> CreateFolders(IEnumerable<string> folders)
-        {
+        private static List<TestFolder> CreateFolders(IEnumerable<string> folders) {
             var result = new List<TestFolder>();
 
             foreach (var folder in folders) {
                 Directory.CreateDirectory(folder);
-                result.Add(new TestFolder
-                {
+                result.Add(new TestFolder {
                     Id = Guid.NewGuid().ToString(),
                     Name = Path.GetFileName(folder),
                     Items = new List<Item>(),
